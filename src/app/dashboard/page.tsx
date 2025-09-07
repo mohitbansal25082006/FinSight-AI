@@ -360,11 +360,34 @@ export default function DashboardPage() {
         if (insightsResponse.ok) {
           const insightData = await insightsResponse.json();
           setAiInsights([insightData]);
+        } else {
+          console.error('Failed to fetch AI insights:', insightsResponse.status);
+          // Create a fallback insight
+          setAiInsights([{
+            id: `fallback-${Date.now()}`,
+            symbol: symbol,
+            title: `Analysis for ${symbol}`,
+            summary: `AI analysis is currently unavailable for ${symbol}. Please try again later.`,
+            sentiment: 'neutral',
+            confidence: 0.5,
+            createdAt: new Date().toISOString()
+          }]);
         }
       }
     } catch (error) {
       console.error('Error fetching news and insights:', error);
       toast.error('Failed to load news and insights');
+      
+      // Create a fallback insight
+      setAiInsights([{
+        id: `fallback-${Date.now()}`,
+        symbol: symbol,
+        title: `Analysis for ${symbol}`,
+        summary: `AI analysis is currently unavailable for ${symbol}. Please try again later.`,
+        sentiment: 'neutral',
+        confidence: 0.5,
+        createdAt: new Date().toISOString()
+      }]);
     }
   };
 
@@ -635,7 +658,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {searchResults.map((stock, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                    <div key={`${stock.symbol}-${index}`} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
                           <span className="font-semibold text-blue-600">{stock.symbol}</span>

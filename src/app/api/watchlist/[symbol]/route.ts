@@ -1,33 +1,34 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getServerSession } from 'next-auth';
-import { authOptions } from '@/lib/auth';
-import { prisma } from '@/lib/prisma';
+import { NextRequest, NextResponse } from 'next/server'
+import { getServerSession } from 'next-auth'
+import { authOptions } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { symbol: string } }
+  context: { params: Promise<{ symbol: string }> }
 ) {
   try {
-    const session = await getServerSession(authOptions);
+    const session = await getServerSession(authOptions)
 
     if (!session?.user?.email) {
       return NextResponse.json(
         { error: 'Unauthorized' },
         { status: 401 }
-      );
+      )
     }
 
-    const { symbol } = params;
+    // ✅ Await params
+    const { symbol } = await context.params
 
     const user = await prisma.user.findUnique({
       where: { email: session.user.email }
-    });
+    })
 
     if (!user) {
       return NextResponse.json(
         { error: 'User not found' },
         { status: 404 }
-      );
+      )
     }
 
     await prisma.watchlist.delete({
@@ -37,15 +38,14 @@ export async function DELETE(
           symbol: symbol.toUpperCase()
         }
       }
-    });
+    })
 
-    return NextResponse.json({ message: 'Removed from watchlist' });
-
+    return NextResponse.json({ message: 'Removed from watchlist' })
   } catch (error) {
-    console.error('Watchlist DELETE Error:', error);
+    console.error('Watchlist DELETE Error:', error)
     return NextResponse.json(
       { error: 'Failed to remove from watchlist' },
       { status: 500 }
-    );
+    )
   }
 }

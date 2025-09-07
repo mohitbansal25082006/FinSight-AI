@@ -152,3 +152,84 @@
   outline: 2px solid hsl(var(--ring));
   outline-offset: 2px;
 }
+
+
+/* Loading animations */
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.shimmer {
+  animation: shimmer 1.5s ease-in-out infinite;
+  background: linear-gradient(90deg, #f0f0f0 25%, #e0e0e0 50%, #f0f0f0 75%);
+  background-size: 200px 100%;
+}
+
+/* Chart tooltips */
+.recharts-tooltip-wrapper {
+  @apply border rounded-lg shadow-lg bg-white;
+}
+
+/* Line clamp utility */
+.line-clamp-2 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+.line-clamp-3 {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+}
+
+/* Gradient text */
+.gradient-text {
+  @apply bg-gradient-to-r from-blue-600 to-purple-600 bg-clip-text text-transparent;
+}
+
+/* Custom button hover effects */
+.btn-glow:hover {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+  transition: box-shadow 0.3s ease;
+}
+
+/* Card hover effects */
+.card-hover:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+  transition: all 0.3s ease;
+}
+
+/* Mobile optimizations */
+@media (max-width: 640px) {
+  .container {
+    @apply px-4;
+  }
+  
+  .text-responsive {
+    @apply text-2xl sm:text-3xl md:text-4xl;
+  }
+}
+
+/* Focus styles for accessibility */
+.focus-visible {
+  @apply ring-2 ring-blue-500 ring-offset-2;
+}
+
+/* Error states */
+.error-border {
+  @apply border-red-300 focus:border-red-500 focus:ring-red-500;
+}
+
+/* Success states */
+.success-border {
+  @apply border-green-300 focus:border-green-500 focus:ring-green-500;
+}

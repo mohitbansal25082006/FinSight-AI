@@ -9,8 +9,17 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
-import { Search, Plus, Trash2, TrendingUp, TrendingDown, DollarSign, Activity, BarChart3, RefreshCw } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Progress } from '@/components/ui/progress';
+import { Separator } from '@/components/ui/separator';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import { 
+  Search, Plus, Trash2, TrendingUp, TrendingDown, DollarSign, Activity, BarChart3, RefreshCw,
+  Eye, Brain, Target, AlertCircle, Clock, Star, News, PieChart as PieChartIcon, Percent,
+  Calendar, ArrowUpRight, ArrowDownRight, Info, Loader2
+} from 'lucide-react';
 import { toast } from 'sonner';
 
 interface StockData {
@@ -24,6 +33,7 @@ interface StockData {
   high: number;
   low: number;
   lastUpdated: string;
+  companyName?: string;
 }
 
 interface WatchlistItem {
@@ -54,10 +64,48 @@ interface ChartData {
   volume: number;
 }
 
+interface PortfolioItem {
+  id: string;
+  symbol: string;
+  name?: string;
+  quantity: number;
+  buyPrice: number;
+  currentPrice?: number;
+  totalValue?: number;
+  profit?: number;
+  profitPercent?: number;
+  type: string;
+  createdAt: string;
+}
+
+interface NewsItem {
+  id: string;
+  title: string;
+  summary: string;
+  url: string;
+  publishedAt: string;
+  source: string;
+  image: string;
+  category: string;
+}
+
+interface AiInsight {
+  id: string;
+  symbol: string;
+  title: string;
+  summary: string;
+  sentiment: 'positive' | 'negative' | 'neutral';
+  confidence: number;
+  createdAt: string;
+}
+
 export default function DashboardPage() {
   const { data: session } = useSession();
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
   const [stockData, setStockData] = useState<{ [key: string]: StockData }>({});
+  const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [aiInsights, setAiInsights] = useState<AiInsight[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -66,10 +114,20 @@ export default function DashboardPage() {
   const [chartLoading, setChartLoading] = useState(false);
   const [currentTab, setCurrentTab] = useState('watchlist');
   const [refreshing, setRefreshing] = useState(false);
+  const [portfolioForm, setPortfolioForm] = useState({
+    symbol: '',
+    quantity: '',
+    buyPrice: '',
+    type: 'stock'
+  });
+  const [isAddingToPortfolio, setIsAddingToPortfolio] = useState(false);
+  const [portfolioAllocation, setPortfolioAllocation] = useState<any[]>([]);
+  const [portfolioPerformance, setPortfolioPerformance] = useState<any[]>([]);
 
-  // Fetch watchlist on component mount
+  // Fetch initial data
   useEffect(() => {
     fetchWatchlist();
+    fetchPortfolio();
   }, []);
 
   // Fetch stock data for watchlist items
@@ -78,6 +136,13 @@ export default function DashboardPage() {
       fetchStockDataForWatchlist();
     }
   }, [watchlist]);
+
+  // Fetch portfolio data
+  useEffect(() => {
+    if (portfolio.length > 0) {
+      calculatePortfolioMetrics();
+    }
+  }, [portfolio]);
 
   const fetchWatchlist = async () => {
     try {
@@ -92,6 +157,19 @@ export default function DashboardPage() {
     }
   };
 
+  const fetchPortfolio = async () => {
+    try {
+      const response = await fetch('/api/portfolio');
+      if (response.ok) {
+        const data = await response.json();
+        setPortfolio(data);
+      }
+    } catch (error) {
+      console.error('Error fetching portfolio:', error);
+      toast.error('Failed to load portfolio');
+    }
+  };
+
   const fetchStockDataForWatchlist = async () => {
     setLoading(true);
     try {
@@ -103,6 +181,7 @@ export default function DashboardPage() {
         }
         return null;
       });
+      
       const results = await Promise.all(promises);
       const newStockData: { [key: string]: StockData } = {};
       
@@ -111,6 +190,7 @@ export default function DashboardPage() {
           newStockData[result.symbol] = result.data;
         }
       });
+      
       setStockData(newStockData);
     } catch (error) {
       console.error('Error fetching stock data:', error);
@@ -123,6 +203,7 @@ export default function DashboardPage() {
   const refreshStockData = async () => {
     setRefreshing(true);
     await fetchStockDataForWatchlist();
+    await fetchPortfolio();
     setRefreshing(false);
     toast.success('Stock data refreshed');
   };
@@ -132,13 +213,16 @@ export default function DashboardPage() {
       toast.error('Please enter a search term');
       return;
     }
+    
     setLoading(true);
     setSearchResults([]);
+    
     try {
       console.log('🔍 Searching for:', searchQuery);
       const response = await fetch(`/api/stocks/search?q=${encodeURIComponent(searchQuery)}`);
       
       console.log('📡 Search response status:', response.status);
+      
       if (response.ok) {
         const data = await response.json();
         console.log('📊 Search results received:', data);
@@ -183,6 +267,7 @@ export default function DashboardPage() {
           type: stock.type.toLowerCase()
         })
       });
+      
       if (response.ok) {
         toast.success(`${stock.symbol} added to watchlist`);
         fetchWatchlist();
@@ -203,6 +288,7 @@ export default function DashboardPage() {
       const response = await fetch(`/api/watchlist/${symbol}`, {
         method: 'DELETE'
       });
+      
       if (response.ok) {
         toast.success(`${symbol} removed from watchlist`);
         fetchWatchlist();
@@ -211,6 +297,7 @@ export default function DashboardPage() {
           delete newData[symbol];
           return newData;
         });
+        
         // Clear chart if the removed symbol was selected
         if (selectedStock === symbol) {
           setSelectedStock(null);
@@ -227,12 +314,15 @@ export default function DashboardPage() {
 
   const fetchChartData = async (symbol: string) => {
     setChartLoading(true);
+    
     try {
       const response = await fetch(`/api/stocks/${symbol}/chart`);
+      
       if (response.ok) {
         const data = await response.json();
         setChartData(data);
         setSelectedStock(symbol);
+        
         // Switch to charts tab
         setCurrentTab('charts');
         toast.success(`Chart loaded for ${symbol}`);
@@ -244,6 +334,139 @@ export default function DashboardPage() {
       toast.error('Failed to load chart data');
     } finally {
       setChartLoading(false);
+    }
+  };
+
+  const fetchNewsAndInsights = async (symbol: string) => {
+    try {
+      // Fetch news
+      const newsResponse = await fetch(`/api/news/${symbol}`);
+      
+      if (newsResponse.ok) {
+        const newsData = await newsResponse.json();
+        setNews(newsData.news || []);
+        
+        // Set AI insights if available
+        if (newsData.aiInsight) {
+          setAiInsights([newsData.aiInsight]);
+        }
+      }
+      
+      // Fetch AI insights if not available from news
+      if (aiInsights.length === 0) {
+        const insightsResponse = await fetch(`/api/ai/insights?symbol=${symbol}`);
+        
+        if (insightsResponse.ok) {
+          const insightData = await insightsResponse.json();
+          setAiInsights([insightData]);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching news and insights:', error);
+      toast.error('Failed to load news and insights');
+    }
+  };
+
+  const addToPortfolio = async () => {
+    if (!portfolioForm.symbol || !portfolioForm.quantity || !portfolioForm.buyPrice) {
+      toast.error('Please fill in all fields');
+      return;
+    }
+    
+    setIsAddingToPortfolio(true);
+    
+    try {
+      const response = await fetch('/api/portfolio', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(portfolioForm),
+      });
+      
+      if (response.ok) {
+        toast.success('Added to portfolio successfully');
+        setPortfolioForm({ symbol: '', quantity: '', buyPrice: '', type: 'stock' });
+        fetchPortfolio();
+      } else {
+        const error = await response.json();
+        toast.error(error.error || 'Failed to add to portfolio');
+      }
+    } catch (error) {
+      console.error('Portfolio error:', error);
+      toast.error('Failed to add to portfolio');
+    } finally {
+      setIsAddingToPortfolio(false);
+    }
+  };
+
+  const removeFromPortfolio = async (id: string) => {
+    try {
+      const response = await fetch(`/api/portfolio/${id}`, {
+        method: 'DELETE',
+      });
+      
+      if (response.ok) {
+        toast.success('Removed from portfolio');
+        fetchPortfolio();
+      } else {
+        toast.error('Failed to remove from portfolio');
+      }
+    } catch (error) {
+      console.error('Portfolio removal error:', error);
+      toast.error('Failed to remove from portfolio');
+    }
+  };
+
+  const calculatePortfolioMetrics = () => {
+    // Calculate portfolio allocation
+    const allocation = portfolio.map(item => ({
+      name: item.symbol,
+      value: item.totalValue || 0,
+      percentage: ((item.totalValue || 0) / portfolio.reduce((sum, p) => sum + (p.totalValue || 0), 0)) * 100
+    }));
+    
+    setPortfolioAllocation(allocation);
+    
+    // Calculate portfolio performance over time (mock data for now)
+    const performance = [
+      { date: 'Jan', value: 10000 },
+      { date: 'Feb', value: 12000 },
+      { date: 'Mar', value: 11500 },
+      { date: 'Apr', value: 13000 },
+      { date: 'May', value: 14500 },
+      { date: 'Jun', value: portfolio.reduce((sum, p) => sum + (p.totalValue || 0), 0) }
+    ];
+    
+    setPortfolioPerformance(performance);
+  };
+
+  const selectStock = async (symbol: string) => {
+    try {
+      // Fetch stock data
+      const stockResponse = await fetch(`/api/stocks/${symbol}`);
+      
+      if (stockResponse.ok) {
+        const stockData = await stockResponse.json();
+        setActiveStock(stockData);
+      }
+      
+      // Fetch chart data
+      const chartResponse = await fetch(`/api/stocks/${symbol}/chart?interval=daily`);
+      
+      if (chartResponse.ok) {
+        const chartData = await chartResponse.json();
+        setChartData(chartData);
+      }
+      
+      // Fetch news and insights
+      await fetchNewsAndInsights(symbol);
+      
+      setSearchResults([]);
+      setSearchQuery('');
+    } catch (error) {
+      console.error('Error selecting stock:', error);
+      toast.error('Failed to load stock data');
     }
   };
 
@@ -291,6 +514,14 @@ export default function DashboardPage() {
     return volume.toLocaleString();
   };
 
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric'
+    });
+  };
+
   // Loading skeleton component
   const StockCardSkeleton = () => (
     <Card>
@@ -322,6 +553,12 @@ export default function DashboardPage() {
       </CardContent>
     </Card>
   );
+
+  // Portfolio allocation chart colors
+  const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
+
+  // Active stock state for detailed view
+  const [activeStock, setActiveStock] = useState<StockData | null>(null);
 
   return (
     <div className="min-h-screen bg-gray-50 p-4 md:p-6 lg:p-8">
@@ -405,15 +642,25 @@ export default function DashboardPage() {
                           )}
                         </div>
                       </div>
-                      <Button
-                        size="sm"
-                        onClick={() => addToWatchlist(stock)}
-                        className="flex items-center gap-1 ml-4"
-                        disabled={loading}
-                      >
-                        <Plus className="h-4 w-4" />
-                        Add
-                      </Button>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => selectStock(stock.symbol)}
+                          disabled={loading}
+                        >
+                          View
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => addToWatchlist(stock)}
+                          className="flex items-center gap-1"
+                          disabled={loading}
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -443,7 +690,7 @@ export default function DashboardPage() {
 
         {/* Main Dashboard Content */}
         <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-3">
+          <TabsList className="grid w-full grid-cols-4">
             <TabsTrigger value="watchlist" className="flex items-center gap-2">
               <Activity className="h-4 w-4" />
               Watchlist
@@ -455,6 +702,10 @@ export default function DashboardPage() {
             <TabsTrigger value="portfolio" className="flex items-center gap-2">
               <DollarSign className="h-4 w-4" />
               Portfolio
+            </TabsTrigger>
+            <TabsTrigger value="insights" className="flex items-center gap-2">
+              <Brain className="h-4 w-4" />
+              Insights
             </TabsTrigger>
           </TabsList>
 
@@ -481,6 +732,7 @@ export default function DashboardPage() {
                   if (isLoading) {
                     return <StockCardSkeleton key={item.id} />;
                   }
+                  
                   return (
                     <Card key={item.id} className="hover:shadow-md transition-all duration-200 border-l-4 border-l-blue-500">
                       <CardHeader className="pb-3">
@@ -753,27 +1005,398 @@ export default function DashboardPage() {
             )}
           </TabsContent>
 
-          {/* Portfolio Tab (Placeholder for Part 3) */}
+          {/* Portfolio Tab */}
           <TabsContent value="portfolio" className="space-y-4">
-            <Alert>
-              <Activity className="h-4 w-4" />
-              <AlertDescription>
-                🚀 Portfolio simulation features will be available in Part 3 of this project.
-                Stay tuned for advanced portfolio tracking, virtual trading, and AI-powered investment insights!
-              </AlertDescription>
-            </Alert>
-            
-            <Card>
-              <CardContent className="py-12 text-center">
-                <DollarSign className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Portfolio Coming Soon
-                </h3>
-                <p className="text-gray-600 mb-4">
-                  Part 3 will include portfolio simulation, virtual trading, AI insights, and much more!
-                </p>
-              </CardContent>
-            </Card>
+            <div className="grid gap-4 md:grid-cols-3">
+              {/* Portfolio Summary */}
+              <Card className="md:col-span-1">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <DollarSign className="h-5 w-5" />
+                    Portfolio Summary
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Total Value</span>
+                      <span className="font-semibold">
+                        {formatCurrency(portfolio.reduce((sum, item) => sum + (item.totalValue || 0), 0))}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Total Profit/Loss</span>
+                      <span className={`font-semibold ${
+                        portfolio.reduce((sum, item) => sum + (item.profit || 0), 0) >= 0 
+                          ? 'text-green-600' 
+                          : 'text-red-600'
+                      }`}>
+                        {formatCurrency(portfolio.reduce((sum, item) => sum + (item.profit || 0), 0))}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Today's Change</span>
+                      <span className="font-semibold text-green-600">+1.2%</span>
+                    </div>
+                  </div>
+                  
+                  <Separator />
+                  
+                  <div className="space-y-2">
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Cash</span>
+                      <span className="font-semibold">
+                        {formatCurrency(10000 - portfolio.reduce((sum, item) => sum + (item.totalValue || 0), 0))}
+                      </span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Invested</span>
+                      <span className="font-semibold">
+                        {formatCurrency(portfolio.reduce((sum, item) => sum + (item.buyPrice * item.quantity), 0))}
+                      </span>
+                    </div>
+                  </div>
+                  
+                  <Separator />
+                  
+                  <Button 
+                    className="w-full" 
+                    onClick={() => {
+                      setPortfolioForm({
+                        symbol: '',
+                        quantity: '',
+                        buyPrice: '',
+                        type: 'stock'
+                      });
+                    }}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add to Portfolio
+                  </Button>
+                </CardContent>
+              </Card>
+              
+              {/* Portfolio Holdings */}
+              <Card className="md:col-span-2">
+                <CardHeader>
+                  <CardTitle>Your Holdings</CardTitle>
+                  <CardDescription>
+                    Track your investments and performance
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {portfolio.length === 0 ? (
+                    <div className="text-center py-8">
+                      <DollarSign className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        Your portfolio is empty
+                      </h3>
+                      <p className="text-gray-600 mb-4">
+                        Add stocks or cryptocurrencies to start tracking your investments
+                      </p>
+                      <Dialog>
+                        <DialogTrigger asChild>
+                          <Button>
+                            <Plus className="h-4 w-4 mr-2" />
+                            Add to Portfolio
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Add to Portfolio</DialogTitle>
+                            <DialogDescription>
+                              Enter the details of your investment
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4">
+                            <div>
+                              <Label htmlFor="symbol">Symbol</Label>
+                              <Input
+                                id="symbol"
+                                placeholder="e.g., AAPL"
+                                value={portfolioForm.symbol}
+                                onChange={(e) => setPortfolioForm({...portfolioForm, symbol: e.target.value.toUpperCase()})}
+                              />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                              <div>
+                                <Label htmlFor="quantity">Quantity</Label>
+                                <Input
+                                  id="quantity"
+                                  type="number"
+                                  placeholder="0"
+                                  value={portfolioForm.quantity}
+                                  onChange={(e) => setPortfolioForm({...portfolioForm, quantity: e.target.value})}
+                                />
+                              </div>
+                              <div>
+                                <Label htmlFor="buyPrice">Buy Price ($)</Label>
+                                <Input
+                                  id="buyPrice"
+                                  type="number"
+                                  placeholder="0.00"
+                                  value={portfolioForm.buyPrice}
+                                  onChange={(e) => setPortfolioForm({...portfolioForm, buyPrice: e.target.value})}
+                                />
+                              </div>
+                            </div>
+                            <div>
+                              <Label htmlFor="type">Type</Label>
+                              <Select value={portfolioForm.type} onValueChange={(value) => setPortfolioForm({...portfolioForm, type: value})}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Select type" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="stock">Stock</SelectItem>
+                                  <SelectItem value="crypto">Cryptocurrency</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </div>
+                            <Button 
+                              onClick={addToPortfolio} 
+                              disabled={isAddingToPortfolio || !portfolioForm.symbol || !portfolioForm.quantity || !portfolioForm.buyPrice}
+                              className="w-full"
+                            >
+                              {isAddingToPortfolio ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Adding...
+                                </>
+                              ) : 'Add to Portfolio'}
+                            </Button>
+                          </div>
+                        </DialogContent>
+                      </Dialog>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Symbol</TableHead>
+                            <TableHead>Quantity</TableHead>
+                            <TableHead>Avg Cost</TableHead>
+                            <TableHead>Current Price</TableHead>
+                            <TableHead>Value</TableHead>
+                            <TableHead>Profit/Loss</TableHead>
+                            <TableHead className="w-10"></TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {portfolio.map((item) => (
+                            <TableRow key={item.id}>
+                              <TableCell className="font-medium">{item.symbol}</TableCell>
+                              <TableCell>{item.quantity}</TableCell>
+                              <TableCell>{formatCurrency(item.buyPrice)}</TableCell>
+                              <TableCell>{formatCurrency(item.currentPrice || 0)}</TableCell>
+                              <TableCell>{formatCurrency(item.totalValue || 0)}</TableCell>
+                              <TableCell className={item.profit && item.profit >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                {item.profitPercent ? formatPercentage(item.profitPercent) : '0.00%'}
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => removeFromPortfolio(item.id)}
+                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                      
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
+                        {/* Portfolio Allocation */}
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <PieChartIcon className="h-5 w-5" />
+                              Allocation
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <PieChart>
+                                  <Pie
+                                    data={portfolioAllocation}
+                                    cx="50%"
+                                    cy="50%"
+                                    labelLine={false}
+                                    outerRadius={80}
+                                    fill="#8884d8"
+                                    dataKey="value"
+                                    label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                                  >
+                                    {portfolioAllocation.map((entry, index) => (
+                                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                    ))}
+                                  </Pie>
+                                  <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                                </PieChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </CardContent>
+                        </Card>
+                        
+                        {/* Portfolio Performance */}
+                        <Card>
+                          <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <TrendingUp className="h-5 w-5" />
+                              Performance
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <AreaChart data={portfolioPerformance}>
+                                  <CartesianGrid strokeDasharray="3 3" />
+                                  <XAxis dataKey="date" />
+                                  <YAxis tickFormatter={(value) => `$${value/1000}k`} />
+                                  <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                                  <Area type="monotone" dataKey="value" stroke="#8884d8" fill="#8884d8" fillOpacity={0.3} />
+                                </AreaChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          {/* Insights Tab */}
+          <TabsContent value="insights" className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* AI Insights */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Brain className="h-5 w-5" />
+                    AI Insights
+                  </CardTitle>
+                  <CardDescription>
+                    AI-powered analysis and predictions
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {aiInsights.length > 0 ? (
+                    <div className="space-y-4">
+                      {aiInsights.map((insight) => (
+                        <div key={insight.id} className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-semibold">{insight.title}</h3>
+                            <Badge variant={
+                              insight.sentiment === 'positive' ? 'default' : 
+                              insight.sentiment === 'negative' ? 'destructive' : 'secondary'
+                            }>
+                              {insight.sentiment}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-3">{insight.summary}</p>
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <span>Confidence: {(insight.confidence * 100).toFixed(0)}%</span>
+                            <span>{formatDate(insight.createdAt)}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Brain className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        No insights available
+                      </h3>
+                      <p className="text-gray-600 mb-4">
+                        Select a stock from your watchlist to generate AI insights
+                      </p>
+                      {watchlist.length > 0 && (
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {watchlist.slice(0, 3).map((item) => (
+                            <Button
+                              key={item.id}
+                              variant="outline"
+                              size="sm"
+                              onClick={() => fetchNewsAndInsights(item.symbol)}
+                            >
+                              Analyze {item.symbol}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              
+              {/* News Feed */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <News className="h-5 w-5" />
+                    Financial News
+                  </CardTitle>
+                  <CardDescription>
+                    Latest news and updates
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {news.length > 0 ? (
+                    <div className="space-y-4 max-h-96 overflow-y-auto">
+                      {news.map((item) => (
+                        <div key={item.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                          <h3 className="font-semibold mb-2">{item.title}</h3>
+                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.summary}</p>
+                          <div className="flex items-center justify-between text-xs text-gray-500">
+                            <span>{item.source}</span>
+                            <span>{formatDate(item.publishedAt)}</span>
+                          </div>
+                          <Button 
+                            variant="link" 
+                            size="sm" 
+                            className="p-0 h-auto text-blue-600"
+                            onClick={() => window.open(item.url, '_blank')}
+                          >
+                            Read more
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <News className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        No news available
+                      </h3>
+                      <p className="text-gray-600 mb-4">
+                        Select a stock from your watchlist to view related news
+                      </p>
+                      {watchlist.length > 0 && (
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {watchlist.slice(0, 3).map((item) => (
+                            <Button
+                              key={item.id}
+                              variant="outline"
+                              size="sm"
+                              onClick={() => fetchNewsAndInsights(item.symbol)}
+                            >
+                              View {item.symbol} News
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </TabsContent>
         </Tabs>
 
@@ -791,43 +1414,54 @@ export default function DashboardPage() {
               </p>
             </CardContent>
           </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Portfolio Value</CardTitle>
+              <DollarSign className="h-4 w-4 text-muted-foreground" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {formatCurrency(portfolio.reduce((sum, item) => sum + (item.totalValue || 0), 0))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {portfolio.length} holdings
+              </p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Today's Gain/Loss</CardTitle>
+              {portfolio.reduce((sum, item) => sum + (item.profit || 0), 0) >= 0 ? (
+                <TrendingUp className="h-4 w-4 text-green-600" />
+              ) : (
+                <TrendingDown className="h-4 w-4 text-red-600" />
+              )}
+            </CardHeader>
+            <CardContent>
+              <div className={`text-2xl font-bold ${
+                portfolio.reduce((sum, item) => sum + (item.profit || 0), 0) >= 0 
+                  ? 'text-green-600' 
+                  : 'text-red-600'
+              }`}>
+                {formatPercentage(portfolio.reduce((sum, item) => sum + (item.profitPercent || 0), 0) / portfolio.length || 0)}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Average performance
+              </p>
+            </CardContent>
+          </Card>
+          
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Market Status</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+              <Activity className="h-4 w-4 text-muted-foreground" />
             </CardHeader>
             <CardContent>
               <div className="text-2xl font-bold text-green-600">Open</div>
               <p className="text-xs text-muted-foreground">
                 US Markets (Live Data)
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Gainers Today</CardTitle>
-              <TrendingUp className="h-4 w-4 text-green-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-green-600">
-                {Object.values(stockData).filter(data => data.change > 0).length}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Positive performers
-              </p>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Losers Today</CardTitle>
-              <TrendingDown className="h-4 w-4 text-red-600" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-2xl font-bold text-red-600">
-                {Object.values(stockData).filter(data => data.change < 0).length}
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Negative performers
               </p>
             </CardContent>
           </Card>

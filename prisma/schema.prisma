@@ -24,7 +24,7 @@ model Account {
   id_token          String? @db.Text
   session_state     String?
   user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@unique([provider, providerAccountId])
 }
 
@@ -46,16 +46,11 @@ model User {
   sessions      Session[]
   watchlist     Watchlist[]
   portfolios    Portfolio[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-  
-  @@unique([identifier, token])
+  aiInsights    AiInsight[]
+  notifications Notification[]
+  preferences   UserPreferences?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }
 
 model Watchlist {
@@ -63,23 +58,75 @@ model Watchlist {
   userId    String
   symbol    String
   name      String?
-  type      String   // 'stock' or 'crypto'
+  type      String   @default("stock") // stock, crypto, forex
   addedAt   DateTime @default(now())
-  createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  
+
   @@unique([userId, symbol])
 }
 
 model Portfolio {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String   @default("My Portfolio")
+  symbol      String
+  quantity    Float
+  buyPrice    Float
+  currentPrice Float?
+  totalValue  Float?
+  profit      Float?
+  profitPercent Float?
+  type        String   @default("stock") // stock, crypto
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AiInsight {
+  id            String   @id @default(cuid())
+  userId        String
+  symbol        String
+  title         String
+  summary       String   @db.Text
+  sentiment     String   // positive, negative, neutral
+  confidence    Float    @default(0.5)
+  sourceUrl     String?
+  imageUrl      String?
+  category      String   @default("general") // earnings, news, analysis
+  isRead        Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
   id        String   @id @default(cuid())
   userId    String
-  symbol    String
-  name      String?
-  type      String   // 'stock' or 'crypto'
-  quantity  Float
-  buyPrice  Float
+  title     String
+  message   String   @db.Text
+  type      String   @default("info") // info, warning, success, error
+  isRead    Boolean  @default(false)
+  actionUrl String?
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserPreferences {
+  id                    String  @id @default(cuid())
+  userId                String  @unique
+  emailNotifications    Boolean @default(true)
+  pushNotifications     Boolean @default(false)
+  darkMode              Boolean @default(false)
+  currency              String  @default("USD")
+  timezone              String  @default("UTC")
+  portfolioUpdateFreq   String  @default("daily") // hourly, daily, weekly
+  newsUpdateFreq        String  @default("daily")
+  user                  User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }

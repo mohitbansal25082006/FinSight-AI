@@ -15,7 +15,7 @@ import { Separator } from '@/components/ui/separator';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
 import { 
   Search, Plus, Trash2, TrendingUp, TrendingDown, DollarSign, Activity, BarChart3, RefreshCw,
-  Brain, Newspaper, PieChart as PieChartIcon, Loader2
+  Brain, Newspaper, PieChart as PieChartIcon, Loader2, RotateCcw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Inter } from 'next/font/google';
@@ -143,6 +143,8 @@ export default function DashboardPage() {
   const [activeStock, setActiveStock] = useState<StockData | null>(null);
   const [loadingAiInsightSymbol, setLoadingAiInsightSymbol] = useState<string | null>(null);
   const [loadingNewsSymbol, setLoadingNewsSymbol] = useState<string | null>(null);
+  const [currentInsightSymbol, setCurrentInsightSymbol] = useState<string | null>(null);
+  const [currentNewsSymbol, setCurrentNewsSymbol] = useState<string | null>(null);
 
   // Fetch initial data
   useEffect(() => {
@@ -383,6 +385,7 @@ export default function DashboardPage() {
 
   const fetchNews = async (symbol: string) => {
     setLoadingNewsSymbol(symbol);
+    setCurrentNewsSymbol(symbol);
     try {
       // Fetch news
       const newsResponse = await fetch(`/api/news/${symbol}`);
@@ -427,6 +430,7 @@ export default function DashboardPage() {
 
   const fetchAiInsights = async (symbol: string) => {
     setLoadingAiInsightSymbol(symbol);
+    setCurrentInsightSymbol(symbol);
     try {
       const insightsResponse = await fetch(`/api/ai/insights?symbol=${symbol}`);
       
@@ -464,6 +468,28 @@ export default function DashboardPage() {
     } finally {
       setLoadingAiInsightSymbol(null);
     }
+  };
+
+  const regenerateAiInsight = () => {
+    if (currentInsightSymbol) {
+      fetchAiInsights(currentInsightSymbol);
+    }
+  };
+
+  const refreshNews = () => {
+    if (currentNewsSymbol) {
+      fetchNews(currentNewsSymbol);
+    }
+  };
+
+  const clearAiInsights = () => {
+    setAiInsights([]);
+    setCurrentInsightSymbol(null);
+  };
+
+  const clearNews = () => {
+    setNews([]);
+    setCurrentNewsSymbol(null);
   };
 
   const addToPortfolio = async () => {
@@ -670,6 +696,7 @@ export default function DashboardPage() {
             </Badge>
           </div>
         </div>
+        
         {/* Search Section */}
         <Card>
           <CardHeader>
@@ -767,6 +794,7 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
+        
         {/* Main Dashboard Content */}
         <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
@@ -787,6 +815,7 @@ export default function DashboardPage() {
               Insights
             </TabsTrigger>
           </TabsList>
+          
           {/* Watchlist Tab */}
           <TabsContent value="watchlist" className="space-y-4">
             {watchlist.length === 0 ? (
@@ -909,6 +938,7 @@ export default function DashboardPage() {
               </div>
             )}
           </TabsContent>
+          
           {/* Charts Tab */}
           <TabsContent value="charts" className="space-y-4">
             {selectedStock && chartData.length > 0 ? (
@@ -1081,6 +1111,7 @@ export default function DashboardPage() {
               </Card>
             )}
           </TabsContent>
+          
           {/* Portfolio Tab */}
           <TabsContent value="portfolio" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-3">
@@ -1409,6 +1440,7 @@ export default function DashboardPage() {
               </Card>
             </div>
           </TabsContent>
+          
           {/* Insights Tab */}
           <TabsContent value="insights" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
@@ -1426,6 +1458,39 @@ export default function DashboardPage() {
                 <CardContent>
                   {aiInsights.length > 0 ? (
                     <div className="space-y-4">
+                      {/* Action buttons for AI insights */}
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold">Current Insight</h3>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={regenerateAiInsight}
+                            disabled={loadingAiInsightSymbol === currentInsightSymbol}
+                            className="flex items-center gap-1"
+                          >
+                            {loadingAiInsightSymbol === currentInsightSymbol ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Regenerating...
+                              </>
+                            ) : (
+                              <>
+                                <RotateCcw className="h-4 w-4" />
+                                Regenerate
+                              </>
+                            )}
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={clearAiInsights}
+                          >
+                            Clear
+                          </Button>
+                        </div>
+                      </div>
+                      
                       {aiInsights.map((insight, index) => (
                         <div key={`${insight.id}-${index}`} className="border rounded-lg p-4">
                           <div className="flex items-center justify-between mb-2">
@@ -1494,25 +1559,60 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   {news.length > 0 ? (
-                    <div className="space-y-4 max-h-96 overflow-y-auto">
-                      {news.map((item, index) => (
-                        <div key={`${item.id}-${index}`} className="border rounded-lg p-4 hover:bg-gray-50">
-                          <h3 className="font-semibold mb-2">{item.title}</h3>
-                          <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.summary}</p>
-                          <div className="flex items-center justify-between text-xs text-gray-500">
-                            <span>{item.source}</span>
-                            <span>{formatDate(item.publishedAt)}</span>
-                          </div>
+                    <div className="space-y-4">
+                      {/* Action buttons for news */}
+                      <div className="flex justify-between items-center mb-4">
+                        <h3 className="text-lg font-semibold">Current News</h3>
+                        <div className="flex gap-2">
                           <Button 
-                            variant="link" 
                             size="sm" 
-                            className="p-0 h-auto text-blue-600"
-                            onClick={() => window.open(item.url, '_blank')}
+                            variant="outline"
+                            onClick={refreshNews}
+                            disabled={loadingNewsSymbol === currentNewsSymbol}
+                            className="flex items-center gap-1"
                           >
-                            Read more
+                            {loadingNewsSymbol === currentNewsSymbol ? (
+                              <>
+                                <Loader2 className="h-4 w-4 animate-spin" />
+                                Refreshing...
+                              </>
+                            ) : (
+                              <>
+                                <RotateCcw className="h-4 w-4" />
+                                Refresh
+                              </>
+                            )}
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={clearNews}
+                          >
+                            Clear
                           </Button>
                         </div>
-                      ))}
+                      </div>
+                      
+                      <div className="space-y-4 max-h-96 overflow-y-auto">
+                        {news.map((item, index) => (
+                          <div key={`${item.id}-${index}`} className="border rounded-lg p-4 hover:bg-gray-50">
+                            <h3 className="font-semibold mb-2">{item.title}</h3>
+                            <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.summary}</p>
+                            <div className="flex items-center justify-between text-xs text-gray-500">
+                              <span>{item.source}</span>
+                              <span>{formatDate(item.publishedAt)}</span>
+                            </div>
+                            <Button 
+                              variant="link" 
+                              size="sm" 
+                              className="p-0 h-auto text-blue-600"
+                              onClick={() => window.open(item.url, '_blank')}
+                            >
+                              Read more
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ) : (
                     <div className="text-center py-8">
@@ -1552,6 +1652,7 @@ export default function DashboardPage() {
             </div>
           </TabsContent>
         </Tabs>
+        
         {/* Market Summary Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>

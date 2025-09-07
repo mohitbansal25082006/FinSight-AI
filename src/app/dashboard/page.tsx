@@ -17,7 +17,7 @@ import { Separator } from '@/components/ui/separator';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
 import { 
   Search, Plus, Trash2, TrendingUp, TrendingDown, DollarSign, Activity, BarChart3, RefreshCw,
-  Eye, Brain, Target, AlertCircle, Clock, Star, News, PieChart as PieChartIcon, Percent,
+  Eye, Brain, Target, AlertCircle, Clock, Star, Newspaper, PieChart as PieChartIcon, Percent,
   Calendar, ArrowUpRight, ArrowDownRight, Info, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -556,7 +556,7 @@ export default function DashboardPage() {
 
   // Portfolio allocation chart colors
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
-
+  
   // Active stock state for detailed view
   const [activeStock, setActiveStock] = useState<StockData | null>(null);
 
@@ -1340,7 +1340,7 @@ export default function DashboardPage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <News className="h-5 w-5" />
+                    <Newspaper className="h-5 w-5" />
                     Financial News
                   </CardTitle>
                   <CardDescription>
@@ -1371,7 +1371,7 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div className="text-center py-8">
-                      <News className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <Newspaper className="h-12 w-12 mx-auto text-gray-400 mb-4" />
                       <h3 className="text-lg font-semibold text-gray-900 mb-2">
                         No news available
                       </h3>

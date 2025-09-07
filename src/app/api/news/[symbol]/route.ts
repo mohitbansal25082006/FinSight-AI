@@ -5,10 +5,12 @@ const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { symbol: string } }
+  { params }: { params: Promise<{ symbol: string }> }
 ) {
   try {
-    const { symbol } = params;
+    // Await the params promise before destructuring
+    const resolvedParams = await params;
+    const { symbol } = resolvedParams;
     
     if (!FINNHUB_API_KEY) {
       return NextResponse.json(

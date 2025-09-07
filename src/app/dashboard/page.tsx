@@ -123,6 +123,7 @@ export default function DashboardPage() {
   const [isAddingToPortfolio, setIsAddingToPortfolio] = useState(false);
   const [portfolioAllocation, setPortfolioAllocation] = useState<any[]>([]);
   const [portfolioPerformance, setPortfolioPerformance] = useState<any[]>([]);
+  const [isPortfolioDialogOpen, setIsPortfolioDialogOpen] = useState(false);
 
   // Fetch initial data
   useEffect(() => {
@@ -388,6 +389,7 @@ export default function DashboardPage() {
         toast.success('Added to portfolio successfully');
         setPortfolioForm({ symbol: '', quantity: '', buyPrice: '', type: 'stock' });
         fetchPortfolio();
+        setIsPortfolioDialogOpen(false); // Close the dialog after successful addition
       } else {
         const error = await response.json();
         toast.error(error.error || 'Failed to add to portfolio');
@@ -468,6 +470,16 @@ export default function DashboardPage() {
       console.error('Error selecting stock:', error);
       toast.error('Failed to load stock data');
     }
+  };
+
+  const openAddToPortfolioDialog = () => {
+    setPortfolioForm({
+      symbol: '',
+      quantity: '',
+      buyPrice: '',
+      type: 'stock'
+    });
+    setIsPortfolioDialogOpen(true);
   };
 
   const formatCurrency = (value: number) => {
@@ -1059,20 +1071,82 @@ export default function DashboardPage() {
                   
                   <Separator />
                   
-                  <Button 
-                    className="w-full" 
-                    onClick={() => {
-                      setPortfolioForm({
-                        symbol: '',
-                        quantity: '',
-                        buyPrice: '',
-                        type: 'stock'
-                      });
-                    }}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add to Portfolio
-                  </Button>
+                  <Dialog open={isPortfolioDialogOpen} onOpenChange={setIsPortfolioDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        className="w-full" 
+                        onClick={openAddToPortfolioDialog}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add to Portfolio
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Add to Portfolio</DialogTitle>
+                        <DialogDescription>
+                          Enter the details of your investment
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="symbol">Symbol</Label>
+                          <Input
+                            id="symbol"
+                            placeholder="e.g., AAPL"
+                            value={portfolioForm.symbol}
+                            onChange={(e) => setPortfolioForm({...portfolioForm, symbol: e.target.value.toUpperCase()})}
+                          />
+                        </div>
+                        <div className="grid grid-cols-2 gap-4">
+                          <div>
+                            <Label htmlFor="quantity">Quantity</Label>
+                            <Input
+                              id="quantity"
+                              type="number"
+                              placeholder="0"
+                              value={portfolioForm.quantity}
+                              onChange={(e) => setPortfolioForm({...portfolioForm, quantity: e.target.value})}
+                            />
+                          </div>
+                          <div>
+                            <Label htmlFor="buyPrice">Buy Price ($)</Label>
+                            <Input
+                              id="buyPrice"
+                              type="number"
+                              placeholder="0.00"
+                              value={portfolioForm.buyPrice}
+                              onChange={(e) => setPortfolioForm({...portfolioForm, buyPrice: e.target.value})}
+                            />
+                          </div>
+                        </div>
+                        <div>
+                          <Label htmlFor="type">Type</Label>
+                          <Select value={portfolioForm.type} onValueChange={(value) => setPortfolioForm({...portfolioForm, type: value})}>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select type" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="stock">Stock</SelectItem>
+                              <SelectItem value="crypto">Cryptocurrency</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <Button 
+                          onClick={addToPortfolio} 
+                          disabled={isAddingToPortfolio || !portfolioForm.symbol || !portfolioForm.quantity || !portfolioForm.buyPrice}
+                          className="w-full"
+                        >
+                          {isAddingToPortfolio ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Adding...
+                            </>
+                          ) : 'Add to Portfolio'}
+                        </Button>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </CardContent>
               </Card>
               
@@ -1094,7 +1168,7 @@ export default function DashboardPage() {
                       <p className="text-gray-600 mb-4">
                         Add stocks or cryptocurrencies to start tracking your investments
                       </p>
-                      <Dialog>
+                      <Dialog open={isPortfolioDialogOpen} onOpenChange={setIsPortfolioDialogOpen}>
                         <DialogTrigger asChild>
                           <Button>
                             <Plus className="h-4 w-4 mr-2" />

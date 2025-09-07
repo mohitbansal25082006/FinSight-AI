@@ -69,20 +69,6 @@ FinSight AI is an advanced financial analytics platform that combines real-time 
 - **Upstash Redis** - Serverless caching (optional)
 - **GitHub Actions** - CI/CD pipeline
 
-## 📸 Screenshots
-
-### Dashboard Overview
-![Dashboard](https://via.placeholder.com/800x450?text=FinSight+AI+Dashboard)
-
-### Stock Analysis
-![Stock Analysis](https://via.placeholder.com/800x450?text=Stock+Analysis+with+Charts)
-
-### Portfolio Management
-![Portfolio](https://via.placeholder.com/800x450?text=Portfolio+Management)
-
-### AI Insights
-![AI Insights](https://via.placeholder.com/800x450?text=AI+Insights+and+Predictions)
-
 ## 🚀 Getting Started
 
 ### Prerequisites
@@ -222,20 +208,6 @@ CRON_SECRET="your-cron-secret-key"
 - **Development**: $0 (all free tiers)
 - **Production**: ~$5-15 (mostly OpenAI usage)
 
-## 🤝 Contributing
-
-Contributions are welcome! Please feel free to submit a Pull Request.
-
-1. Fork the project
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 🙏 Acknowledgments
 
 - [Next.js](https://nextjs.org/) for the amazing React framework
@@ -246,4 +218,4 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ---
 
-**Built with ❤️ using Next.js 15 & AI**
+**Built with ❤️ by Mohit Bansal

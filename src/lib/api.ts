@@ -1,13 +1,13 @@
 // Utility functions for API calls with error handling and caching
 
-interface ApiResponse<T> {
+export interface ApiResponse<T> {
   data?: T;
   error?: string;
   loading?: boolean;
 }
 
 export class ApiClient {
-  private static cache = new Map<string, { data: any; timestamp: number }>();
+  private static cache = new Map<string, { data: unknown; timestamp: number }>();
   private static readonly CACHE_DURATION = 60000; // 1 minute
 
   static async get<T>(
@@ -20,7 +20,7 @@ export class ApiClient {
       if (useCache) {
         const cached = this.cache.get(url);
         if (cached && Date.now() - cached.timestamp < this.CACHE_DURATION) {
-          return { data: cached.data };
+          return { data: cached.data as T };
         }
       }
 
@@ -28,16 +28,17 @@ export class ApiClient {
         ...options,
         headers: {
           'Content-Type': 'application/json',
-          ...options.headers,
+          ...(options.headers as Record<string, string>),
         },
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        return { error: errorData.error || 'Network error occurred' };
+        const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        const message = (errorData && (errorData.error as string)) || 'Network error occurred';
+        return { error: message };
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as T;
 
       // Cache the response
       if (useCache) {
@@ -46,14 +47,15 @@ export class ApiClient {
 
       return { data };
     } catch (error) {
-      console.error('API Error:', error);
+      const err = error as unknown;
+      console.error('API Error (GET):', err);
       return { error: 'Failed to fetch data' };
     }
   }
 
   static async post<T>(
     url: string,
-    data: any,
+    data: unknown,
     options: RequestInit = {}
   ): Promise<ApiResponse<T>> {
     try {
@@ -61,21 +63,23 @@ export class ApiClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          ...options.headers,
+          ...(options.headers as Record<string, string>),
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify(data ?? {}),
         ...options,
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        return { error: errorData.error || 'Network error occurred' };
+        const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        const message = (errorData && (errorData.error as string)) || 'Network error occurred';
+        return { error: message };
       }
 
-      const responseData = await response.json();
+      const responseData = (await response.json()) as T;
       return { data: responseData };
     } catch (error) {
-      console.error('API Error:', error);
+      const err = error as unknown;
+      console.error('API Error (POST):', err);
       return { error: 'Failed to post data' };
     }
   }
@@ -89,25 +93,27 @@ export class ApiClient {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
-          ...options.headers,
+          ...(options.headers as Record<string, string>),
         },
         ...options,
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        return { error: errorData.error || 'Network error occurred' };
+        const errorData = (await response.json().catch(() => ({}))) as Record<string, unknown>;
+        const message = (errorData && (errorData.error as string)) || 'Network error occurred';
+        return { error: message };
       }
 
-      const data = await response.json();
+      const data = (await response.json()) as T;
       return { data };
     } catch (error) {
-      console.error('API Error:', error);
+      const err = error as unknown;
+      console.error('API Error (DELETE):', err);
       return { error: 'Failed to delete data' };
     }
   }
 
-  static clearCache() {
+  static clearCache(): void {
     this.cache.clear();
   }
 }

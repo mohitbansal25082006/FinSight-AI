@@ -2,23 +2,35 @@ import { NextRequest, NextResponse } from 'next/server';
 
 const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 
-export async function GET(request: NextRequest) {
+interface SearchResult {
+  symbol: string;
+  name: string;
+  type: string;
+  region: string;
+  currency: string;
+  displaySymbol: string | null;
+}
+
+function isObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null;
+}
+
+function getString(obj: Record<string, unknown>, key: string, fallback = ''): string {
+  const v = obj[key];
+  return typeof v === 'string' ? v : fallback;
+}
+
+export async function GET(request: NextRequest): Promise<NextResponse> {
   try {
     const { searchParams } = new URL(request.url);
     const query = searchParams.get('q');
 
     if (!query || query.length < 1) {
-      return NextResponse.json(
-        { error: 'Search query is required' },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: 'Search query is required' }, { status: 400 });
     }
 
     if (!FINNHUB_API_KEY) {
-      return NextResponse.json(
-        { error: 'API key not configured' },
-        { status: 500 }
-      );
+      return NextResponse.json({ error: 'API key not configured' }, { status: 500 });
     }
 
     console.log('🔍 Searching for:', query);
@@ -37,38 +49,40 @@ export async function GET(request: NextRequest) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
-    const data = await response.json();
+    const data = (await response.json()) as Record<string, unknown>;
     console.log('📊 Raw API Response:', data);
 
-    // Finnhub returns { count: number, result: [...] }
-    const results = data.result || [];
-    console.log('✅ Found results:', results.length);
+    const resultsRaw = Array.isArray(data.result) ? (data.result as unknown[]) : [];
 
-    if (results.length === 0) {
-      return NextResponse.json(
-        { error: 'No results found for this search term' },
-        { status: 404 }
-      );
-    }
+    const formattedResults = resultsRaw
+      .map((item) => {
+        if (!isObject(item)) return null;
 
-    // Format results for our frontend
-    const formattedResults = results.slice(0, 10).map((item: any) => ({
-      symbol: item.symbol || '',
-      name: item.description || '',
-      type: item.type || 'Common Stock',
-      region: 'US',
-      currency: 'USD',
-      displaySymbol: item.displaySymbol || item.symbol
-    }));
+        const symbol = getString(item, 'symbol');
+        if (!symbol) return null; // symbol is required
 
-    console.log('✅ Formatted results:', formattedResults);
+        const description = getString(item, 'description');
+        const type = getString(item, 'type', 'Common Stock');
+        const displaySymbol = getString(item, 'displaySymbol', symbol);
+
+        const result: SearchResult = {
+          symbol,
+          name: description || symbol,
+          type,
+          region: 'US',
+          currency: 'USD',
+          displaySymbol: displaySymbol || null,
+        };
+
+        return result;
+      })
+      .filter((r): r is SearchResult => r !== null)
+      .slice(0, 10);
+
+    console.log('✅ Formatted results:', formattedResults.length);
     return NextResponse.json(formattedResults);
-
-  } catch (error) {
+  } catch (error: unknown) {
     console.error('❌ Search API Error:', error);
-    return NextResponse.json(
-      { error: 'Failed to search stocks' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Failed to search stocks' }, { status: 500 });
   }
 }

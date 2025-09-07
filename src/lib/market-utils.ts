@@ -1,5 +1,3 @@
-// src/lib/market-utils.ts
-
 export interface MarketData {
   symbol: string;
   price: number;
@@ -105,16 +103,22 @@ export class MarketUtils {
   static isMarketOpen(): boolean {
     const now = new Date();
     const utc = new Date(now.getTime() + now.getTimezoneOffset() * 60000);
-    const est = new Date(utc.getTime() - 5 * 3600000); // EST offset
+    const est = new Date(utc.getTime() - 5 * 3600000); // EST offset (note: does not account for DST)
     
     const day = est.getDay();
     const hour = est.getHours();
+    const minutes = est.getMinutes();
     
     // Market closed on weekends
     if (day === 0 || day === 6) return false;
     
     // Market hours: 9:30 AM - 4:00 PM EST
-    return hour >= 9 && hour < 16;
+    if (hour < 9) return false;
+    if (hour === 9 && minutes < 30) return false;
+    if (hour > 16) return false;
+    if (hour === 16) return false; // close at 16:00
+
+    return true;
   }
 
   /**
@@ -208,15 +212,29 @@ export class MarketUtils {
 
   /**
    * Debounce function for search
+   *
+   * Note: kept simple to avoid cross-environment timer type mismatches (NodeJS vs DOM).
    */
-  static debounce<T extends (...args: any[]) => any>(
+  static debounce<T extends (...args: unknown[]) => unknown>(
     func: T,
     wait: number
   ): (...args: Parameters<T>) => void {
-    let timeout: NodeJS.Timeout;
-    return (...args: Parameters<T>) => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => func.apply(this, args), wait);
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
+
+    return (...args: Parameters<T>): void => {
+      if (timeoutId !== undefined) {
+        // cast to unknown -> any to satisfy both DOM and Node typings at compile time
+        clearTimeout(timeoutId as unknown as number);
+      }
+
+      // store timer id (cast) so we can clear it later
+      timeoutId = setTimeout(() => {
+        // call the original function with captured args
+        // using spread keeps correct arguments and types
+        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+        // @ts-ignore-next-line
+        func(...args);
+      }, wait) as unknown as ReturnType<typeof setTimeout>;
     };
   }
 
@@ -231,7 +249,7 @@ export class MarketUtils {
     const totalReturn = ((lastPrice - firstPrice) / firstPrice) * 100;
 
     // Calculate daily returns
-    const dailyReturns = [];
+    const dailyReturns: number[] = [];
     for (let i = 1; i < chartData.length; i++) {
       const dailyReturn = ((chartData[i].close - chartData[i - 1].close) / chartData[i - 1].close) * 100;
       dailyReturns.push(dailyReturn);
@@ -271,7 +289,7 @@ export class ApiResponseHelper {
     };
   }
 
-  static error(error: string, data?: any): ApiResponse<any> {
+  static error(error: string, data?: unknown): ApiResponse<unknown> {
     return {
       success: false,
       error,
@@ -284,9 +302,9 @@ export class ApiResponseHelper {
  * Cache manager for API responses
  */
 export class CacheManager {
-  private static cache = new Map<string, { data: any; timestamp: number; ttl: number }>();
+  private static cache = new Map<string, { data: unknown; timestamp: number; ttl: number }>();
 
-  static set(key: string, data: any, ttlMs: number = 60000): void {
+  static set(key: string, data: unknown, ttlMs: number = 60000): void {
     this.cache.set(key, {
       data,
       timestamp: Date.now(),

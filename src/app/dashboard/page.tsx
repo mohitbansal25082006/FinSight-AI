@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,20 +7,25 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Progress } from '@/components/ui/progress';
 import { Separator } from '@/components/ui/separator';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
 import { 
   Search, Plus, Trash2, TrendingUp, TrendingDown, DollarSign, Activity, BarChart3, RefreshCw,
-  Eye, Brain, Target, AlertCircle, Clock, Star, Newspaper, PieChart as PieChartIcon, Percent,
-  Calendar, ArrowUpRight, ArrowDownRight, Info, Loader2
+  Brain, Newspaper, PieChart as PieChartIcon, Loader2
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Inter } from 'next/font/google';
+
+// Load Inter font with fallback
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  fallback: ['system-ui', 'arial'],
+});
 
 interface StockData {
   symbol: string;
@@ -99,6 +104,17 @@ interface AiInsight {
   createdAt: string;
 }
 
+interface PortfolioAllocation {
+  name: string;
+  value: number;
+  percentage: number;
+}
+
+interface PortfolioPerformance {
+  date: string;
+  value: number;
+}
+
 export default function DashboardPage() {
   const { data: session } = useSession();
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
@@ -121,9 +137,12 @@ export default function DashboardPage() {
     type: 'stock'
   });
   const [isAddingToPortfolio, setIsAddingToPortfolio] = useState(false);
-  const [portfolioAllocation, setPortfolioAllocation] = useState<any[]>([]);
-  const [portfolioPerformance, setPortfolioPerformance] = useState<any[]>([]);
+  const [portfolioAllocation, setPortfolioAllocation] = useState<PortfolioAllocation[]>([]);
+  const [portfolioPerformance, setPortfolioPerformance] = useState<PortfolioPerformance[]>([]);
   const [isPortfolioDialogOpen, setIsPortfolioDialogOpen] = useState(false);
+  const [activeStock, setActiveStock] = useState<StockData | null>(null);
+  const [loadingAiInsightSymbol, setLoadingAiInsightSymbol] = useState<string | null>(null);
+  const [loadingNewsSymbol, setLoadingNewsSymbol] = useState<string | null>(null);
 
   // Fetch initial data
   useEffect(() => {
@@ -131,47 +150,8 @@ export default function DashboardPage() {
     fetchPortfolio();
   }, []);
 
-  // Fetch stock data for watchlist items
-  useEffect(() => {
-    if (watchlist.length > 0) {
-      fetchStockDataForWatchlist();
-    }
-  }, [watchlist]);
-
-  // Fetch portfolio data
-  useEffect(() => {
-    if (portfolio.length > 0) {
-      calculatePortfolioMetrics();
-    }
-  }, [portfolio]);
-
-  const fetchWatchlist = async () => {
-    try {
-      const response = await fetch('/api/watchlist');
-      if (response.ok) {
-        const data = await response.json();
-        setWatchlist(data);
-      }
-    } catch (error) {
-      console.error('Error fetching watchlist:', error);
-      toast.error('Failed to load watchlist');
-    }
-  };
-
-  const fetchPortfolio = async () => {
-    try {
-      const response = await fetch('/api/portfolio');
-      if (response.ok) {
-        const data = await response.json();
-        setPortfolio(data);
-      }
-    } catch (error) {
-      console.error('Error fetching portfolio:', error);
-      toast.error('Failed to load portfolio');
-    }
-  };
-
-  const fetchStockDataForWatchlist = async () => {
+  // Memoize functions to prevent unnecessary re-renders
+  const fetchStockDataForWatchlist = useCallback(async () => {
     setLoading(true);
     try {
       const promises = watchlist.map(async (item) => {
@@ -198,6 +178,69 @@ export default function DashboardPage() {
       toast.error('Failed to load stock data');
     } finally {
       setLoading(false);
+    }
+  }, [watchlist]);
+
+  const calculatePortfolioMetrics = useCallback(() => {
+    // Calculate portfolio allocation
+    const allocation = portfolio.map(item => ({
+      name: item.symbol,
+      value: item.totalValue || 0,
+      percentage: ((item.totalValue || 0) / portfolio.reduce((sum, p) => sum + (p.totalValue || 0), 0)) * 100
+    }));
+    
+    setPortfolioAllocation(allocation);
+    
+    // Calculate portfolio performance over time (mock data for now)
+    const performance = [
+      { date: 'Jan', value: 10000 },
+      { date: 'Feb', value: 12000 },
+      { date: 'Mar', value: 11500 },
+      { date: 'Apr', value: 13000 },
+      { date: 'May', value: 14500 },
+      { date: 'Jun', value: portfolio.reduce((sum, p) => sum + (p.totalValue || 0), 0) }
+    ];
+    
+    setPortfolioPerformance(performance);
+  }, [portfolio]);
+
+  // Fetch stock data for watchlist items
+  useEffect(() => {
+    if (watchlist.length > 0) {
+      fetchStockDataForWatchlist();
+    }
+  }, [watchlist, fetchStockDataForWatchlist]);
+
+  // Fetch portfolio data
+  useEffect(() => {
+    if (portfolio.length > 0) {
+      calculatePortfolioMetrics();
+    }
+  }, [portfolio, calculatePortfolioMetrics]);
+
+  const fetchWatchlist = async () => {
+    try {
+      const response = await fetch('/api/watchlist');
+      if (response.ok) {
+        const data = await response.json();
+        setWatchlist(data);
+      }
+    } catch (error) {
+      console.error('Error fetching watchlist:', error);
+      toast.error('Failed to load watchlist');
+    }
+  };
+
+  const fetchPortfolio = async () => {
+    try {
+      const response = await fetch('/api/portfolio');
+      if (response.ok) {
+        const data = await response.json();
+        setPortfolio(data);
+      }
+    } catch (error) {
+      console.error('Error fetching portfolio:', error);
+      toast.error('Failed to load portfolio');
     }
   };
 
@@ -339,24 +382,51 @@ export default function DashboardPage() {
   };
 
   const fetchNews = async (symbol: string) => {
+    setLoadingNewsSymbol(symbol);
     try {
       // Fetch news
       const newsResponse = await fetch(`/api/news/${symbol}`);
       
       if (newsResponse.ok) {
         const newsData = await newsResponse.json();
-        setNews(newsData.news || []);
+        console.log('News data received:', newsData);
+        
+        // Handle different possible response formats
+        if (Array.isArray(newsData)) {
+          // If response is directly an array of news items
+          setNews(newsData);
+        } else if (newsData && Array.isArray(newsData.news)) {
+          // If response has a news property that is an array
+          setNews(newsData.news);
+        } else if (newsData && Array.isArray(newsData.articles)) {
+          // If response has an articles property that is an array
+          setNews(newsData.articles);
+        } else {
+          // If none of the expected formats, show error
+          console.error('Unexpected news data format:', newsData);
+          setNews([]);
+          toast.error('Unexpected news data format');
+          return;
+        }
+        
         toast.success(`News loaded for ${symbol}`);
       } else {
-        toast.error('Failed to load news');
+        const errorData = await newsResponse.json().catch(() => ({}));
+        console.error('Failed to fetch news:', errorData);
+        toast.error(errorData.error || 'Failed to load news');
+        setNews([]);
       }
     } catch (error) {
       console.error('Error fetching news:', error);
       toast.error('Failed to load news');
+      setNews([]);
+    } finally {
+      setLoadingNewsSymbol(null);
     }
   };
 
   const fetchAiInsights = async (symbol: string) => {
+    setLoadingAiInsightSymbol(symbol);
     try {
       const insightsResponse = await fetch(`/api/ai/insights?symbol=${symbol}`);
       
@@ -391,6 +461,8 @@ export default function DashboardPage() {
         confidence: 0.5,
         createdAt: new Date().toISOString()
       }]);
+    } finally {
+      setLoadingAiInsightSymbol(null);
     }
   };
 
@@ -444,29 +516,6 @@ export default function DashboardPage() {
       console.error('Portfolio removal error:', error);
       toast.error('Failed to remove from portfolio');
     }
-  };
-
-  const calculatePortfolioMetrics = () => {
-    // Calculate portfolio allocation
-    const allocation = portfolio.map(item => ({
-      name: item.symbol,
-      value: item.totalValue || 0,
-      percentage: ((item.totalValue || 0) / portfolio.reduce((sum, p) => sum + (p.totalValue || 0), 0)) * 100
-    }));
-    
-    setPortfolioAllocation(allocation);
-    
-    // Calculate portfolio performance over time (mock data for now)
-    const performance = [
-      { date: 'Jan', value: 10000 },
-      { date: 'Feb', value: 12000 },
-      { date: 'Mar', value: 11500 },
-      { date: 'Apr', value: 13000 },
-      { date: 'May', value: 14500 },
-      { date: 'Jun', value: portfolio.reduce((sum, p) => sum + (p.totalValue || 0), 0) }
-    ];
-    
-    setPortfolioPerformance(performance);
   };
 
   const selectStock = async (symbol: string) => {
@@ -592,11 +641,8 @@ export default function DashboardPage() {
   // Portfolio allocation chart colors
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
   
-  // Active stock state for detailed view
-  const [activeStock, setActiveStock] = useState<StockData | null>(null);
-
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6 lg:p-8">
+    <div className={`min-h-screen bg-gray-50 p-4 md:p-6 lg:p-8 ${inter.className}`}>
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center md:justify-between">
@@ -624,13 +670,12 @@ export default function DashboardPage() {
             </Badge>
           </div>
         </div>
-
         {/* Search Section */}
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Search className="h-5 w-5" />
-              Search Stocks & Crypto
+              Search Stocks &amp; Crypto
             </CardTitle>
             <CardDescription>
               Find and add stocks or cryptocurrencies to your watchlist
@@ -654,7 +699,7 @@ export default function DashboardPage() {
             {searchResults.length > 0 && (
               <div className="mt-4">
                 <div className="text-sm text-gray-600 mb-2">
-                  Found {searchResults.length} results for "{searchQuery}"
+                  Found {searchResults.length} results for &quot;{searchQuery}&quot;
                 </div>
                 <div className="space-y-2 max-h-96 overflow-y-auto">
                   {searchResults.map((stock, index) => (
@@ -717,12 +762,11 @@ export default function DashboardPage() {
             {loading && searchQuery && (
               <div className="mt-4 text-center py-4">
                 <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                <span className="text-sm text-gray-500">Searching for "{searchQuery}"...</span>
+                <span className="text-sm text-gray-500">Searching for &quot;{searchQuery}&quot;...</span>
               </div>
             )}
           </CardContent>
         </Card>
-
         {/* Main Dashboard Content */}
         <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
@@ -743,7 +787,6 @@ export default function DashboardPage() {
               Insights
             </TabsTrigger>
           </TabsList>
-
           {/* Watchlist Tab */}
           <TabsContent value="watchlist" className="space-y-4">
             {watchlist.length === 0 ? (
@@ -866,7 +909,6 @@ export default function DashboardPage() {
               </div>
             )}
           </TabsContent>
-
           {/* Charts Tab */}
           <TabsContent value="charts" className="space-y-4">
             {selectedStock && chartData.length > 0 ? (
@@ -1018,7 +1060,7 @@ export default function DashboardPage() {
                     No chart selected
                   </h3>
                   <p className="text-gray-600 mb-4">
-                    Click "View Chart" on any stock in your watchlist to display its price chart here
+                    Click &quot;View Chart&quot; on any stock in your watchlist to display its price chart here
                   </p>
                   {watchlist.length > 0 && (
                     <div className="flex flex-wrap gap-2 justify-center">
@@ -1039,7 +1081,6 @@ export default function DashboardPage() {
               </Card>
             )}
           </TabsContent>
-
           {/* Portfolio Tab */}
           <TabsContent value="portfolio" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-3">
@@ -1070,7 +1111,7 @@ export default function DashboardPage() {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-gray-600">Today's Change</span>
+                      <span className="text-gray-600">Today&apos;s Change</span>
                       <span className="font-semibold text-green-600">+1.2%</span>
                     </div>
                   </div>
@@ -1368,7 +1409,6 @@ export default function DashboardPage() {
               </Card>
             </div>
           </TabsContent>
-
           {/* Insights Tab */}
           <TabsContent value="insights" className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
@@ -1422,8 +1462,16 @@ export default function DashboardPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => fetchAiInsights(item.symbol)}
+                              disabled={loadingAiInsightSymbol === item.symbol}
                             >
-                              Analyze {item.symbol}
+                              {loadingAiInsightSymbol === item.symbol ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Analyzing...
+                                </>
+                              ) : (
+                                `Analyze ${item.symbol}`
+                              )}
                             </Button>
                           ))}
                         </div>
@@ -1483,8 +1531,16 @@ export default function DashboardPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => fetchNews(item.symbol)}
+                              disabled={loadingNewsSymbol === item.symbol}
                             >
-                              View {item.symbol} News
+                              {loadingNewsSymbol === item.symbol ? (
+                                <>
+                                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                  Loading...
+                                </>
+                              ) : (
+                                `View ${item.symbol} News`
+                              )}
                             </Button>
                           ))}
                         </div>
@@ -1496,7 +1552,6 @@ export default function DashboardPage() {
             </div>
           </TabsContent>
         </Tabs>
-
         {/* Market Summary Cards */}
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
           <Card>
@@ -1529,7 +1584,7 @@ export default function DashboardPage() {
           
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Today's Gain/Loss</CardTitle>
+              <CardTitle className="text-sm font-medium">Today&apos;s Gain/Loss</CardTitle>
               {portfolio.reduce((sum, item) => sum + (item.profit || 0), 0) >= 0 ? (
                 <TrendingUp className="h-4 w-4 text-green-600" />
               ) : (

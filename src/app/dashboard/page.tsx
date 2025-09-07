@@ -338,7 +338,7 @@ export default function DashboardPage() {
     }
   };
 
-  const fetchNewsAndInsights = async (symbol: string) => {
+  const fetchNews = async (symbol: string) => {
     try {
       // Fetch news
       const newsResponse = await fetch(`/api/news/${symbol}`);
@@ -346,41 +346,44 @@ export default function DashboardPage() {
       if (newsResponse.ok) {
         const newsData = await newsResponse.json();
         setNews(newsData.news || []);
-        
-        // Set AI insights if available
-        if (newsData.aiInsight) {
-          setAiInsights([newsData.aiInsight]);
-        }
-      }
-      
-      // Fetch AI insights if not available from news
-      if (aiInsights.length === 0) {
-        const insightsResponse = await fetch(`/api/ai/insights?symbol=${symbol}`);
-        
-        if (insightsResponse.ok) {
-          const insightData = await insightsResponse.json();
-          setAiInsights([insightData]);
-        } else {
-          console.error('Failed to fetch AI insights:', insightsResponse.status);
-          // Create a fallback insight
-          setAiInsights([{
-            id: `fallback-${Date.now()}`,
-            symbol: symbol,
-            title: `Analysis for ${symbol}`,
-            summary: `AI analysis is currently unavailable for ${symbol}. Please try again later.`,
-            sentiment: 'neutral',
-            confidence: 0.5,
-            createdAt: new Date().toISOString()
-          }]);
-        }
+        toast.success(`News loaded for ${symbol}`);
+      } else {
+        toast.error('Failed to load news');
       }
     } catch (error) {
-      console.error('Error fetching news and insights:', error);
-      toast.error('Failed to load news and insights');
+      console.error('Error fetching news:', error);
+      toast.error('Failed to load news');
+    }
+  };
+
+  const fetchAiInsights = async (symbol: string) => {
+    try {
+      const insightsResponse = await fetch(`/api/ai/insights?symbol=${symbol}`);
+      
+      if (insightsResponse.ok) {
+        const insightData = await insightsResponse.json();
+        setAiInsights([insightData]);
+        toast.success(`AI insights loaded for ${symbol}`);
+      } else {
+        console.error('Failed to fetch AI insights:', insightsResponse.status);
+        // Create a fallback insight
+        setAiInsights([{
+          id: `fallback-${Date.now()}-${symbol}`,
+          symbol: symbol,
+          title: `Analysis for ${symbol}`,
+          summary: `AI analysis is currently unavailable for ${symbol}. Please try again later.`,
+          sentiment: 'neutral',
+          confidence: 0.5,
+          createdAt: new Date().toISOString()
+        }]);
+      }
+    } catch (error) {
+      console.error('Error fetching AI insights:', error);
+      toast.error('Failed to load AI insights');
       
       // Create a fallback insight
       setAiInsights([{
-        id: `fallback-${Date.now()}`,
+        id: `fallback-${Date.now()}-${symbol}`,
         symbol: symbol,
         title: `Analysis for ${symbol}`,
         summary: `AI analysis is currently unavailable for ${symbol}. Please try again later.`,
@@ -483,9 +486,6 @@ export default function DashboardPage() {
         const chartData = await chartResponse.json();
         setChartData(chartData);
       }
-      
-      // Fetch news and insights
-      await fetchNewsAndInsights(symbol);
       
       setSearchResults([]);
       setSearchQuery('');
@@ -1386,8 +1386,8 @@ export default function DashboardPage() {
                 <CardContent>
                   {aiInsights.length > 0 ? (
                     <div className="space-y-4">
-                      {aiInsights.map((insight) => (
-                        <div key={insight.id} className="border rounded-lg p-4">
+                      {aiInsights.map((insight, index) => (
+                        <div key={`${insight.id}-${index}`} className="border rounded-lg p-4">
                           <div className="flex items-center justify-between mb-2">
                             <h3 className="font-semibold">{insight.title}</h3>
                             <Badge variant={
@@ -1421,7 +1421,7 @@ export default function DashboardPage() {
                               key={item.id}
                               variant="outline"
                               size="sm"
-                              onClick={() => fetchNewsAndInsights(item.symbol)}
+                              onClick={() => fetchAiInsights(item.symbol)}
                             >
                               Analyze {item.symbol}
                             </Button>
@@ -1447,8 +1447,8 @@ export default function DashboardPage() {
                 <CardContent>
                   {news.length > 0 ? (
                     <div className="space-y-4 max-h-96 overflow-y-auto">
-                      {news.map((item) => (
-                        <div key={item.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                      {news.map((item, index) => (
+                        <div key={`${item.id}-${index}`} className="border rounded-lg p-4 hover:bg-gray-50">
                           <h3 className="font-semibold mb-2">{item.title}</h3>
                           <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.summary}</p>
                           <div className="flex items-center justify-between text-xs text-gray-500">
@@ -1482,7 +1482,7 @@ export default function DashboardPage() {
                               key={item.id}
                               variant="outline"
                               size="sm"
-                              onClick={() => fetchNewsAndInsights(item.symbol)}
+                              onClick={() => fetchNews(item.symbol)}
                             >
                               View {item.symbol} News
                             </Button>

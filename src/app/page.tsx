@@ -23,7 +23,6 @@ import {
 import Link from 'next/link'
 import { signIn } from "next-auth/react"
 import { AuthButton } from "@/components/auth/auth-button"
-
 export default function LandingPage() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   
@@ -34,55 +33,8 @@ export default function LandingPage() {
   const handleGithubSignIn = () => {
     signIn('github', { callbackUrl: '/dashboard' })
   }
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      {/* Navigation */}
-      <nav className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Logo */}
-            <div className="flex items-center space-x-2">
-              <div className="bg-gradient-to-r from-blue-600 to-indigo-600 p-2 rounded-lg">
-                <TrendingUp className="h-6 w-6 text-white" />
-              </div>
-              <span className="font-bold text-xl text-slate-900">FinSight AI</span>
-            </div>
-            {/* Desktop Navigation */}
-            <div className="hidden md:flex items-center space-x-8">
-              <Link href="#features" className="text-slate-600 hover:text-slate-900 transition-colors">Features</Link>
-              <Link href="#pricing" className="text-slate-600 hover:text-slate-900 transition-colors">Pricing</Link>
-              <Link href="#testimonials" className="text-slate-600 hover:text-slate-900 transition-colors">Reviews</Link>
-              <Link href="#contact" className="text-slate-600 hover:text-slate-900 transition-colors">Contact</Link>
-              <AuthButton />
-            </div>
-            {/* Mobile menu button */}
-            <div className="md:hidden">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              >
-                {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-              </Button>
-            </div>
-          </div>
-          {/* Mobile Navigation */}
-          {mobileMenuOpen && (
-            <div className="md:hidden py-4 border-t border-slate-200">
-              <div className="flex flex-col space-y-4">
-                <Link href="#features" className="text-slate-600 hover:text-slate-900 px-2">Features</Link>
-                <Link href="#pricing" className="text-slate-600 hover:text-slate-900 px-2">Pricing</Link>
-                <Link href="#testimonials" className="text-slate-600 hover:text-slate-900 px-2">Reviews</Link>
-                <Link href="#contact" className="text-slate-600 hover:text-slate-900 px-2">Contact</Link>
-                <div className="px-2 pt-2">
-                  <AuthButton />
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
-      </nav>
       {/* Hero Section */}
       <section className="pt-20 pb-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-7xl mx-auto text-center">

@@ -1,14 +1,17 @@
-import type { Metadata } from "next"
+import { redirect } from 'next/navigation';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
 
-export const metadata: Metadata = {
-  title: "Dashboard - FinSight AI",
-  description: "Your personal trading dashboard with AI-powered insights",
-}
-
-export default function DashboardLayout({
+export default async function DashboardLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }) {
-  return <>{children}</>
+  const session = await getServerSession(authOptions);
+
+  if (!session) {
+    redirect('/auth/signin?callbackUrl=/dashboard');
+  }
+
+  return <>{children}</>;
 }

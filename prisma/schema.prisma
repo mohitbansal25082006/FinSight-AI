@@ -23,9 +23,8 @@ model Account {
   scope             String?
   id_token          String? @db.Text
   session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
   @@unique([provider, providerAccountId])
 }
 
@@ -55,7 +54,7 @@ model VerificationToken {
   identifier String
   token      String   @unique
   expires    DateTime
-
+  
   @@unique([identifier, token])
 }
 
@@ -65,9 +64,10 @@ model Watchlist {
   symbol    String
   name      String?
   type      String   // 'stock' or 'crypto'
+  addedAt   DateTime @default(now())
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  
   @@unique([userId, symbol])
 }
 

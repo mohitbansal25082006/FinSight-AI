@@ -19,15 +19,21 @@ export function AuthButton() {
 
   if (status === "loading") {
     return (
-      <div className="h-9 w-20 bg-gray-200 animate-pulse rounded-md" />
+      <div className="flex items-center gap-2">
+        <div className="h-9 w-32 bg-gray-200 animate-pulse rounded-md" />
+      </div>
     )
   }
 
   if (!session) {
     return (
-      <Button onClick={() => signIn()} size="sm" className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700">
-        <LogIn className="w-4 h-4 mr-2" />
-        Sign In
+      <Button 
+        onClick={() => signIn()} 
+        size="sm"
+        className="bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
+      >
+        <LogIn className="h-4 w-4 mr-2" />
+        Get Started
       </Button>
     )
   }
@@ -35,8 +41,8 @@ export function AuthButton() {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" className="relative h-9 w-9 rounded-full">
-          <Avatar className="h-9 w-9">
+        <Button variant="ghost" className="relative h-10 w-10 rounded-full">
+          <Avatar className="h-10 w-10">
             <AvatarImage src={session.user?.image || ''} alt={session.user?.name || ''} />
             <AvatarFallback>
               {session.user?.name?.charAt(0).toUpperCase() || <User className="h-4 w-4" />}
@@ -67,6 +73,13 @@ export function AuthButton() {
         </DropdownMenuItem>
         
         <DropdownMenuItem asChild>
+          <Link href="/profile" className="cursor-pointer">
+            <User className="mr-2 h-4 w-4" />
+            Profile
+          </Link>
+        </DropdownMenuItem>
+
+        <DropdownMenuItem asChild>
           <Link href="/settings" className="cursor-pointer">
             <Settings className="mr-2 h-4 w-4" />
             Settings
@@ -76,7 +89,7 @@ export function AuthButton() {
         <DropdownMenuSeparator />
         
         <DropdownMenuItem
-          className="text-red-600 cursor-pointer"
+          className="text-red-600 cursor-pointer focus:text-red-600"
           onClick={() => signOut({ callbackUrl: '/' })}
         >
           <LogOut className="mr-2 h-4 w-4" />

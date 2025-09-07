@@ -6,7 +6,6 @@
 [![Next.js](https://img.shields.io/badge/Next.js-15-black)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-3.0-38B2AC.svg)](https://tailwindcss.com/)
-[![OpenAI](https://img.shields.io/badge/OpenAI-GPT-4-412991.svg)](https://openai.com/)
 [![Finnhub](https://img.shields.io/badge/Finnhub-API-00B464.svg)](https://finnhub.io/)
 
 **Live Demo**: [https://finsight-ai-phi.vercel.app/](https://finsight-ai-phi.vercel.app/)

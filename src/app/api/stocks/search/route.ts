@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const ALPHA_VANTAGE_API_KEY = process.env.ALPHA_VANTAGE_API_KEY;
-const BASE_URL = 'https://www.alphavantage.co/query';
+const FINNHUB_API_KEY = process.env.FINNHUB_API_KEY;
 
 export async function GET(request: NextRequest) {
   try {
@@ -15,44 +14,58 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    if (!ALPHA_VANTAGE_API_KEY) {
+    if (!FINNHUB_API_KEY) {
       return NextResponse.json(
         { error: 'API key not configured' },
         { status: 500 }
       );
     }
 
+    console.log('🔍 Searching for:', query);
+
     const response = await fetch(
-      `${BASE_URL}?function=SYMBOL_SEARCH&keywords=${query}&apikey=${ALPHA_VANTAGE_API_KEY}`
+      `https://finnhub.io/api/v1/search?q=${encodeURIComponent(query)}&token=${FINNHUB_API_KEY}`,
+      {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; FinSight-AI/1.0)',
+        },
+      }
     );
 
     if (!response.ok) {
-      throw new Error('Failed to search stocks');
+      console.error('❌ API Response not OK:', response.status, response.statusText);
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
 
     const data = await response.json();
+    console.log('📊 Raw API Response:', data);
 
-    if (data['Error Message'] || data['Note']) {
+    // Finnhub returns { count: number, result: [...] }
+    const results = data.result || [];
+    console.log('✅ Found results:', results.length);
+
+    if (results.length === 0) {
       return NextResponse.json(
-        { error: 'API limit reached or invalid request' },
-        { status: 400 }
+        { error: 'No results found for this search term' },
+        { status: 404 }
       );
     }
 
-    const results = data['bestMatches'] || [];
-    
-    const formattedResults = results.slice(0, 10).map((match: any) => ({
-      symbol: match['1. symbol'],
-      name: match['2. name'],
-      type: match['3. type'],
-      region: match['4. region'],
-      currency: match['8. currency']
+    // Format results for our frontend
+    const formattedResults = results.slice(0, 10).map((item: any) => ({
+      symbol: item.symbol || '',
+      name: item.description || '',
+      type: item.type || 'Common Stock',
+      region: 'US',
+      currency: 'USD',
+      displaySymbol: item.displaySymbol || item.symbol
     }));
 
+    console.log('✅ Formatted results:', formattedResults);
     return NextResponse.json(formattedResults);
 
   } catch (error) {
-    console.error('Search API Error:', error);
+    console.error('❌ Search API Error:', error);
     return NextResponse.json(
       { error: 'Failed to search stocks' },
       { status: 500 }

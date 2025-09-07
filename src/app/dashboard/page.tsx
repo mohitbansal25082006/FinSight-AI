@@ -1,5 +1,4 @@
 'use client';
-
 import { useState, useEffect } from 'react';
 import { useSession } from 'next-auth/react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,6 +40,9 @@ interface SearchResult {
   type: string;
   region: string;
   currency: string;
+  matchScore?: string;
+  marketOpen?: string;
+  marketClose?: string;
 }
 
 interface ChartData {
@@ -101,7 +103,6 @@ export default function DashboardPage() {
         }
         return null;
       });
-
       const results = await Promise.all(promises);
       const newStockData: { [key: string]: StockData } = {};
       
@@ -110,7 +111,6 @@ export default function DashboardPage() {
           newStockData[result.symbol] = result.data;
         }
       });
-
       setStockData(newStockData);
     } catch (error) {
       console.error('Error fetching stock data:', error);
@@ -128,20 +128,45 @@ export default function DashboardPage() {
   };
 
   const searchStocks = async () => {
-    if (!searchQuery.trim()) return;
-
+    if (!searchQuery.trim()) {
+      toast.error('Please enter a search term');
+      return;
+    }
     setLoading(true);
+    setSearchResults([]);
     try {
+      console.log('🔍 Searching for:', searchQuery);
       const response = await fetch(`/api/stocks/search?q=${encodeURIComponent(searchQuery)}`);
+      
+      console.log('📡 Search response status:', response.status);
       if (response.ok) {
         const data = await response.json();
-        setSearchResults(data);
+        console.log('📊 Search results received:', data);
+        
+        if (Array.isArray(data) && data.length > 0) {
+          setSearchResults(data);
+          toast.success(`Found ${data.length} results for "${searchQuery}"`);
+        } else {
+          toast.error('No results found. Try a different search term.');
+          setSearchResults([]);
+        }
       } else {
-        toast.error('Search failed');
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Search failed:', errorData);
+        
+        if (response.status === 429) {
+          toast.error('Too many requests. Please wait a minute and try again.');
+        } else if (response.status === 404) {
+          toast.error('No results found for this search term.');
+        } else {
+          toast.error(errorData.error || 'Search failed. Please try again.');
+        }
+        setSearchResults([]);
       }
     } catch (error) {
-      console.error('Search error:', error);
-      toast.error('Search failed');
+      console.error('❌ Search error:', error);
+      toast.error('Network error. Please check your connection.');
+      setSearchResults([]);
     } finally {
       setLoading(false);
     }
@@ -158,7 +183,6 @@ export default function DashboardPage() {
           type: stock.type.toLowerCase()
         })
       });
-
       if (response.ok) {
         toast.success(`${stock.symbol} added to watchlist`);
         fetchWatchlist();
@@ -179,7 +203,6 @@ export default function DashboardPage() {
       const response = await fetch(`/api/watchlist/${symbol}`, {
         method: 'DELETE'
       });
-
       if (response.ok) {
         toast.success(`${symbol} removed from watchlist`);
         fetchWatchlist();
@@ -234,11 +257,32 @@ export default function DashboardPage() {
   };
 
   const formatPercentage = (value: string | number) => {
+    // Handle undefined or null values
+    if (value === undefined || value === null) {
+      return 'N/A';
+    }
+    
     const numValue = typeof value === 'string' ? parseFloat(value) : value;
+    
+    // Handle NaN values
+    if (isNaN(numValue)) {
+      return 'N/A';
+    }
+    
     return `${numValue >= 0 ? '+' : ''}${numValue.toFixed(2)}%`;
   };
 
-  const formatVolume = (volume: number) => {
+  const formatVolume = (volume: number | undefined) => {
+    // Handle undefined or null values
+    if (volume === undefined || volume === null) {
+      return 'N/A';
+    }
+    
+    // Handle NaN values
+    if (isNaN(volume)) {
+      return 'N/A';
+    }
+    
     if (volume >= 1000000) {
       return `${(volume / 1000000).toFixed(1)}M`;
     } else if (volume >= 1000) {
@@ -333,31 +377,65 @@ export default function DashboardPage() {
                 {loading ? 'Searching...' : 'Search'}
               </Button>
             </div>
-
+            
+            {/* Enhanced search results section */}
             {searchResults.length > 0 && (
-              <div className="mt-4 space-y-2 max-h-64 overflow-y-auto">
-                {searchResults.map((stock, index) => (
-                  <div key={index} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 transition-colors">
-                    <div className="flex-1">
-                      <div className="font-semibold text-lg">{stock.symbol}</div>
-                      <div className="text-sm text-gray-600 line-clamp-1">{stock.name}</div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        <Badge variant="secondary" className="mr-2 text-xs">
-                          {stock.type}
-                        </Badge>
-                        {stock.region} • {stock.currency}
+              <div className="mt-4">
+                <div className="text-sm text-gray-600 mb-2">
+                  Found {searchResults.length} results for "{searchQuery}"
+                </div>
+                <div className="space-y-2 max-h-96 overflow-y-auto">
+                  {searchResults.map((stock, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-semibold text-blue-600">{stock.symbol}</span>
+                          <span className="text-xs bg-gray-100 px-2 py-1 rounded">{stock.type}</span>
+                          {stock.matchScore && (
+                            <span className="text-xs text-gray-500">
+                              Match: {Math.round(parseFloat(stock.matchScore) * 100)}%
+                            </span>
+                          )}
+                        </div>
+                        <div className="text-sm text-gray-800 font-medium mt-1">{stock.name}</div>
+                        <div className="text-xs text-gray-500">
+                          {stock.region} • {stock.currency}
+                          {stock.marketOpen && stock.marketClose && (
+                            <> • Market: {stock.marketOpen} - {stock.marketClose}</>
+                          )}
+                        </div>
                       </div>
+                      <Button
+                        size="sm"
+                        onClick={() => addToWatchlist(stock)}
+                        className="flex items-center gap-1 ml-4"
+                        disabled={loading}
+                      >
+                        <Plus className="h-4 w-4" />
+                        Add
+                      </Button>
                     </div>
-                    <Button
-                      size="sm"
-                      onClick={() => addToWatchlist(stock)}
-                      className="flex items-center gap-1 ml-4"
-                    >
-                      <Plus className="h-4 w-4" />
-                      Add
-                    </Button>
-                  </div>
-                ))}
+                  ))}
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setSearchResults([]);
+                    setSearchQuery('');
+                  }}
+                  className="mt-2"
+                >
+                  Clear Results
+                </Button>
+              </div>
+            )}
+            
+            {/* Add loading state display */}
+            {loading && searchQuery && (
+              <div className="mt-4 text-center py-4">
+                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
+                <span className="text-sm text-gray-500">Searching for "{searchQuery}"...</span>
               </div>
             )}
           </CardContent>
@@ -403,7 +481,6 @@ export default function DashboardPage() {
                   if (isLoading) {
                     return <StockCardSkeleton key={item.id} />;
                   }
-
                   return (
                     <Card key={item.id} className="hover:shadow-md transition-all duration-200 border-l-4 border-l-blue-500">
                       <CardHeader className="pb-3">
@@ -714,7 +791,6 @@ export default function DashboardPage() {
               </p>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Market Status</CardTitle>
@@ -727,7 +803,6 @@ export default function DashboardPage() {
               </p>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Gainers Today</CardTitle>
@@ -742,7 +817,6 @@ export default function DashboardPage() {
               </p>
             </CardContent>
           </Card>
-
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium">Losers Today</CardTitle>

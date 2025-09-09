@@ -209,6 +209,10 @@ CRON_SECRET="your-cron-secret-key"
 - **Development**: $0 (all free tiers)
 - **Production**: ~$5-15 (mostly OpenAI usage)
 
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
 ## 🙏 Acknowledgments
 
 - [Next.js](https://nextjs.org/) for the amazing React framework

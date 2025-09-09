@@ -8,6 +8,8 @@
 [![Tailwind CSS](https://img.shields.io/badge/Tailwind%20CSS-3.0-38B2AC.svg)](https://tailwindcss.com/)
 [![Finnhub](https://img.shields.io/badge/Finnhub-API-00B464.svg)](https://finnhub.io/)
 
+![FinSight-AI Banner](public/banner.png)
+
 **Live Demo**: [https://finsight-ai-phi.vercel.app/](https://finsight-ai-phi.vercel.app/)
 
 FinSight AI is an advanced financial analytics platform that combines real-time market data, AI-powered insights, and portfolio simulations to help investors make smarter decisions. Built with Next.js 15 and powered by cutting-edge AI technologies.

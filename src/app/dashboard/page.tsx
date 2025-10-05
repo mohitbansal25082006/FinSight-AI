@@ -200,11 +200,52 @@ interface FraudAlertResult {
   indicators: string[];
 }
 
+interface StrategyPerformance {
+  totalReturn: number;
+  winRate: number;
+  maxDrawdown: number;
+  sharpeRatio: number;
+  volatility: number;
+  profitFactor: number;
+  annualReturn: number;
+}
+
+interface EnhancedMarketTrendForecast {
+  trend: string;
+  confidence: number;
+  keyIndicators: string[];
+  catalysts: string[];
+  sectorExpectations: Record<string, string>;
+  riskFactors: string[];
+  timeframe: string;
+  lastUpdated: string;
+  technicalAnalysis: {
+    trendStrength: number;
+    supportLevels: number[];
+    resistanceLevels: number[];
+    volumeAnalysis: string;
+  };
+  macroFactors: {
+    interestRates: string;
+    inflation: string;
+    gdpGrowth: string;
+    employment: string;
+  };
+}
+
 interface TradingStrategy {
+  id: string;
   name: string;
   description: string;
   parameters: Record<string, any>;
-  performance?: Record<string, any>;
+  performance?: StrategyPerformance;
+  isActive: boolean;
+  createdAt: string;
+  backtestResults?: StrategyPerformance;
+  riskLevel: 'low' | 'medium' | 'high';
+  expectedAnnualReturn?: number;
+  maxDrawdown?: number;
+  winRate?: number;
 }
 
 interface MarketTrendForecast {
@@ -269,13 +310,20 @@ export default function DashboardPage() {
   const [isProcessingChatbotQuery, setIsProcessingChatbotQuery] = useState(false);
   const [portfolioAllocation, setPortfolioAllocation] = useState<PortfolioAllocation[]>([]);
   const [portfolioPerformance, setPortfolioPerformance] = useState<PortfolioPerformance[]>([]);
+  const [strategyPerformance, setStrategyPerformance] = useState<StrategyPerformance | null>(null);
+  const [selectedStrategy, setSelectedStrategy] = useState<string | null>(null);
+  const [backtestTimeframe, setBacktestTimeframe] = useState('1Y');
+  const [isActivatingStrategy, setIsActivatingStrategy] = useState(false);
+  const [isRunningBacktest, setIsRunningBacktest] = useState(false);
+  const [enhancedMarketForecast, setEnhancedMarketForecast] = useState<EnhancedMarketTrendForecast | null>(null);
 
   // Fetch initial data
   useEffect(() => {
     fetchWatchlist();
     fetchPortfolio();
     fetchStockRecommendations();
-    fetchMarketTrendForecast();
+    fetchEnhancedMarketTrendForecast();
+    fetchTradingStrategies();
   }, []);
 
   // Memoize functions to prevent unnecessary re-renders
@@ -690,20 +738,106 @@ export default function DashboardPage() {
     }
   };
 
+  const activateStrategy = async (strategyId: string) => {
+    setIsActivatingStrategy(true);
+    try {
+      const response = await fetch('/api/ai/strategies', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strategyId, isActive: true }),
+      });
+      
+      if (response.ok) {
+        toast.success('Strategy activated successfully');
+        fetchTradingStrategies();
+      } else {
+        toast.error('Failed to activate strategy');
+      }
+    } catch (error) {
+      console.error('Error activating strategy:', error);
+      toast.error('Failed to activate strategy');
+    } finally {
+      setIsActivatingStrategy(false);
+    }
+  };
+
+  const deactivateStrategy = async (strategyId: string) => {
+    setIsActivatingStrategy(true);
+    try {
+      const response = await fetch('/api/ai/strategies', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strategyId, isActive: false }),
+      });
+      
+      if (response.ok) {
+        toast.success('Strategy deactivated');
+        fetchTradingStrategies();
+      } else {
+        toast.error('Failed to deactivate strategy');
+      }
+    } catch (error) {
+      console.error('Error deactivating strategy:', error);
+      toast.error('Failed to deactivate strategy');
+    } finally {
+      setIsActivatingStrategy(false);
+    }
+  };
+
+  const runBacktest = async (strategyId: string) => {
+    setIsRunningBacktest(true);
+    try {
+      const response = await fetch('/api/ai/strategies/backtest', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ strategyId, timeframe: backtestTimeframe }),
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        setStrategyPerformance(data.performance);
+        toast.success('Backtest completed successfully');
+      } else {
+        toast.error('Failed to run backtest');
+      }
+    } catch (error) {
+      console.error('Error running backtest:', error);
+      toast.error('Failed to run backtest');
+    } finally {
+      setIsRunningBacktest(false);
+    }
+  };
+
+  const fetchEnhancedMarketTrendForecast = async () => {
+    try {
+      const response = await fetch('/api/ai/forecast?enhanced=true');
+      
+      if (response.ok) {
+        const data = await response.json();
+        setEnhancedMarketForecast(data);
+      } else {
+        console.error('Failed to fetch enhanced market forecast');
+      }
+    } catch (error) {
+      console.error('Error fetching enhanced market forecast:', error);
+    }
+  };
+
   const fetchTradingStrategies = async () => {
     try {
       const response = await fetch('/api/ai/strategies');
       
       if (response.ok) {
         const data = await response.json();
-        setTradingStrategies(data);
-        toast.success('Trading strategies generated');
+        setTradingStrategies(data.strategies || []);
       } else {
         console.error('Failed to fetch trading strategies');
+        setTradingStrategies([]);
       }
     } catch (error) {
       console.error('Error fetching trading strategies:', error);
       toast.error('Failed to generate trading strategies');
+      setTradingStrategies([]);
     }
   };
 
@@ -721,21 +855,6 @@ export default function DashboardPage() {
     } catch (error) {
       console.error('Error fetching portfolio optimization:', error);
       toast.error('Failed to optimize portfolio');
-    }
-  };
-
-  const fetchMarketTrendForecast = async () => {
-    try {
-      const response = await fetch('/api/ai/forecast');
-      
-      if (response.ok) {
-        const data = await response.json();
-        setMarketTrendForecast(data);
-      } else {
-        console.error('Failed to fetch market trend forecast');
-      }
-    } catch (error) {
-      console.error('Error fetching market trend forecast:', error);
     }
   };
 
@@ -887,7 +1006,8 @@ export default function DashboardPage() {
     setIsPortfolioDialogOpen(true);
   };
 
-  const formatCurrency = (value: number) => {
+  const formatCurrency = (value: number | undefined | null): string => {
+    if (value === undefined || value === null) return '$0.00';
     return new Intl.NumberFormat('en-US', {
       style: 'currency',
       currency: 'USD',
@@ -896,7 +1016,7 @@ export default function DashboardPage() {
     }).format(value);
   };
 
-  const formatPercentage = (value: string | number) => {
+  const formatPercentage = (value: string | number | undefined | null): string => {
     // Handle undefined or null values
     if (value === undefined || value === null) {
       return 'N/A';
@@ -912,7 +1032,7 @@ export default function DashboardPage() {
     return `${numValue >= 0 ? '+' : ''}${numValue.toFixed(2)}%`;
   };
 
-  const formatVolume = (volume: number | undefined) => {
+  const formatVolume = (volume: number | undefined | null): string => {
     // Handle undefined or null values
     if (volume === undefined || volume === null) {
       return 'N/A';
@@ -931,7 +1051,8 @@ export default function DashboardPage() {
     return volume.toLocaleString();
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | undefined | null): string => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -939,7 +1060,8 @@ export default function DashboardPage() {
     });
   };
 
-  const formatTime = (dateString: string) => {
+  const formatTime = (dateString: string | undefined | null): string => {
+    if (!dateString) return 'N/A';
     return new Date(dateString).toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit'
@@ -982,7 +1104,7 @@ export default function DashboardPage() {
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
   
   // Sentiment colors
-  const getSentimentColor = (sentiment: string) => {
+  const getSentimentColor = (sentiment: string | undefined): string => {
     switch (sentiment) {
       case 'positive':
         return 'text-green-600 bg-green-100';
@@ -994,7 +1116,7 @@ export default function DashboardPage() {
   };
 
   // Get action color
-  const getActionColor = (action: string) => {
+  const getActionColor = (action: string | undefined): string => {
     switch (action) {
       case 'buy':
         return 'text-green-600 bg-green-100';
@@ -1006,7 +1128,7 @@ export default function DashboardPage() {
   };
 
   // Get trend color
-  const getTrendColor = (trend: string) => {
+  const getTrendColor = (trend: string | undefined): string => {
     switch (trend) {
       case 'bullish':
         return 'text-green-600 bg-green-100';
@@ -1018,7 +1140,7 @@ export default function DashboardPage() {
   };
 
   // Get alert type color
-  const getAlertTypeColor = (alertType: string) => {
+  const getAlertTypeColor = (alertType: string | undefined): string => {
     switch (alertType) {
       case 'pump_and_dump':
       case 'wash_trading':
@@ -1027,6 +1149,532 @@ export default function DashboardPage() {
       default:
         return 'text-yellow-600 bg-yellow-100';
     }
+  };
+
+  // Get performance color
+  const getPerformanceColor = (value: number | undefined | null): string => {
+    if (value === undefined || value === null) return 'text-gray-600';
+    return value >= 0 ? 'text-green-600' : 'text-red-600';
+  };
+
+  const renderTradingStrategiesTab = () => {
+    return (
+      <div className="grid gap-4 md:grid-cols-2">
+        {/* Trading Strategies */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Target className="h-5 w-5" />
+              Automated Trading Strategies
+            </CardTitle>
+            <CardDescription>
+              AI-generated trading strategies based on your risk profile
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {tradingStrategies.length > 0 ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold">Your Strategies</h3>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchTradingStrategies}
+                    className="flex items-center gap-1"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Refresh
+                  </Button>
+                </div>
+                
+                <div className="space-y-3 max-h-96 overflow-y-auto">
+                  {tradingStrategies.map((strategy: TradingStrategy) => (
+                    <div 
+                      key={strategy.id} 
+                      className={`border rounded-lg p-4 ${strategy.isActive ? 'border-blue-500 bg-blue-50' : 'border-gray-200'}`}
+                    >
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-semibold">{strategy.name}</h3>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={strategy.isActive ? "default" : "outline"}>
+                            {strategy.isActive ? 'Active' : 'Inactive'}
+                          </Badge>
+                          <Badge variant="outline" className={
+                            strategy.riskLevel === 'high' ? 'text-red-600 border-red-600' : 
+                            strategy.riskLevel === 'low' ? 'text-green-600 border-green-600' : 
+                            'text-yellow-600 border-yellow-600'
+                          }>
+                            {strategy.riskLevel?.toUpperCase()}
+                          </Badge>
+                        </div>
+                      </div>
+                      <p className="text-sm text-gray-600 mb-3">{strategy.description}</p>
+                      
+                      {strategy.performance && (
+                        <div className="grid grid-cols-2 gap-2 mb-3 text-xs">
+                          <div>
+                            <span className="text-gray-500">Win Rate:</span>
+                            <div className="font-medium">{(strategy.performance.winRate * 100).toFixed(1)}%</div>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Annual Return:</span>
+                            <div className={`font-medium ${getPerformanceColor(strategy.performance.annualReturn)}`}>
+                              {strategy.performance.annualReturn ? `${strategy.performance.annualReturn > 0 ? '+' : ''}${(strategy.performance.annualReturn * 100).toFixed(1)}%` : 'N/A'}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Max Drawdown:</span>
+                            <div className="font-medium text-red-600">
+                              {strategy.performance.maxDrawdown ? `${(strategy.performance.maxDrawdown * 100).toFixed(1)}%` : 'N/A'}
+                            </div>
+                          </div>
+                          <div>
+                            <span className="text-gray-500">Sharpe Ratio:</span>
+                            <div className="font-medium">{strategy.performance.sharpeRatio?.toFixed(2) || 'N/A'}</div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      <div className="flex items-center justify-between pt-2 mt-2">
+                        <span className="text-xs text-gray-500">{formatDate(strategy.createdAt)}</span>
+                        <div className="flex gap-2">
+                          <Button 
+                            size="sm" 
+                            variant="outline"
+                            onClick={() => setSelectedStrategy(strategy.id)}
+                          >
+                            View Details
+                          </Button>
+                          <Button 
+                            size="sm" 
+                            variant={strategy.isActive ? "destructive" : "default"}
+                            onClick={() => strategy.isActive ? deactivateStrategy(strategy.id) : activateStrategy(strategy.id)}
+                            disabled={isActivatingStrategy}
+                          >
+                            {isActivatingStrategy ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              strategy.isActive ? 'Deactivate' : 'Activate'
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {/* Strategy Details Dialog */}
+                {selectedStrategy && (
+                  <Dialog open={!!selectedStrategy} onOpenChange={() => setSelectedStrategy(null)}>
+                    <DialogContent className="max-w-2xl">
+                      <DialogHeader>
+                        <DialogTitle>
+                          {tradingStrategies.find(s => s.id === selectedStrategy)?.name}
+                        </DialogTitle>
+                        <DialogDescription>
+                          Detailed view of the trading strategy
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        {(() => {
+                          const strategy = tradingStrategies.find(s => s.id === selectedStrategy);
+                          if (!strategy) return null;
+                          
+                          return (
+                            <>
+                              <div className="space-y-2">
+                                <h4 className="font-medium">Description</h4>
+                                <p className="text-sm text-gray-600">{strategy.description}</p>
+                              </div>
+                              
+                              <div className="space-y-2">
+                                <h4 className="font-medium">Parameters</h4>
+                                <div className="bg-gray-50 p-3 rounded text-sm">
+                                  {Object.entries(strategy.parameters).map(([key, value]) => (
+                                    <div key={key} className="flex justify-between py-1 border-b border-gray-200 last:border-b-0">
+                                      <span className="font-medium text-gray-700">{key}:</span>
+                                      <span className="text-gray-900">{typeof value === 'object' ? JSON.stringify(value) : String(value)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+                              
+                              {strategy.performance && (
+                                <div className="space-y-2">
+                                  <h4 className="font-medium">Performance Metrics</h4>
+                                  <div className="bg-green-50 p-3 rounded text-sm">
+                                    <div className="grid grid-cols-2 gap-2">
+                                      <div className="flex justify-between py-1 border-b border-green-200 last:border-b-0">
+                                        <span className="font-medium text-gray-700">Win Rate:</span>
+                                        <span className="font-semibold">{(strategy.performance.winRate * 100).toFixed(1)}%</span>
+                                      </div>
+                                      <div className="flex justify-between py-1 border-b border-green-200 last:border-b-0">
+                                        <span className="font-medium text-gray-700">Profit Factor:</span>
+                                        <span className="font-semibold">{strategy.performance.profitFactor?.toFixed(2) || 'N/A'}</span>
+                                      </div>
+                                      <div className="flex justify-between py-1 border-b border-green-200 last:border-b-0">
+                                        <span className="font-medium text-gray-700">Max Drawdown:</span>
+                                        <span className="font-semibold text-red-600">{(strategy.performance.maxDrawdown * 100).toFixed(1)}%</span>
+                                      </div>
+                                      <div className="flex justify-between py-1 border-b border-green-200 last:border-b-0">
+                                        <span className="font-medium text-gray-700">Sharpe Ratio:</span>
+                                        <span className="font-semibold">{strategy.performance.sharpeRatio?.toFixed(2) || 'N/A'}</span>
+                                      </div>
+                                      <div className="flex justify-between py-1">
+                                        <span className="font-medium text-gray-700">Annual Return:</span>
+                                        <span className={`font-semibold ${getPerformanceColor(strategy.performance.annualReturn)}`}>
+                                          {strategy.performance.annualReturn ? `${strategy.performance.annualReturn > 0 ? '+' : ''}${(strategy.performance.annualReturn * 100).toFixed(1)}%` : 'N/A'}
+                                        </span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                              
+                              <div className="flex items-center justify-between pt-2 mt-2">
+                                <span className="text-xs text-gray-500">Created: {formatDate(strategy.createdAt)}</span>
+                                <div className="flex gap-2">
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => runBacktest(strategy.id)}
+                                    disabled={isRunningBacktest}
+                                  >
+                                    {isRunningBacktest ? (
+                                      <>
+                                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                        Backtesting...
+                                      </>
+                                    ) : (
+                                      <>
+                                        <BarChart3 className="h-4 w-4 mr-2" />
+                                        Run Backtest
+                                      </>
+                                    )}
+                                  </Button>
+                                  <Select value={backtestTimeframe} onValueChange={setBacktestTimeframe}>
+                                    <SelectTrigger className="w-24">
+                                      <SelectValue />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="1M">1 Month</SelectItem>
+                                      <SelectItem value="3M">3 Months</SelectItem>
+                                      <SelectItem value="6M">6 Months</SelectItem>
+                                      <SelectItem value="1Y">1 Year</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                              </div>
+                              
+                              {strategyPerformance && (
+                                <div className="mt-4">
+                                  <h4 className="font-medium mb-2">Backtest Results</h4>
+                                  <div className="bg-gray-50 p-3 rounded">
+                                    <div className="grid grid-cols-2 gap-2 text-sm">
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-700">Total Return:</span>
+                                        <span className={`font-semibold ${getPerformanceColor(strategyPerformance.totalReturn)}`}>
+                                          {strategyPerformance.totalReturn > 0 ? '+' : ''}{(strategyPerformance.totalReturn * 100).toFixed(2)}%
+                                        </span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-700">Win Rate:</span>
+                                        <span className="font-semibold">{(strategyPerformance.winRate * 100).toFixed(1)}%</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-700">Max Drawdown:</span>
+                                        <span className="font-semibold text-red-600">{(strategyPerformance.maxDrawdown * 100).toFixed(1)}%</span>
+                                      </div>
+                                      <div className="flex justify-between">
+                                        <span className="text-gray-700">Sharpe Ratio:</span>
+                                        <span className="font-semibold">{strategyPerformance.sharpeRatio?.toFixed(2) || 'N/A'}</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </>
+                          );
+                        })()}
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Target className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                  No strategies available
+                </h3>
+                <p className="text-gray-600 mb-4">
+                  We're generating personalized trading strategies based on your risk profile
+                </p>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={fetchTradingStrategies}
+                >
+                  Generate Strategies
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+        
+        {/* Backtest Results */}
+        {strategyPerformance && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <BarChart3 className="h-5 w-5" />
+                Backtest Results
+              </CardTitle>
+              <CardDescription>
+                Performance analysis of your trading strategy
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="text-center">
+                    <p className="text-sm text-gray-500">Total Return</p>
+                    <p className={`text-2xl font-bold ${getPerformanceColor(strategyPerformance.totalReturn)}`}>
+                      {strategyPerformance.totalReturn > 0 ? '+' : ''}{(strategyPerformance.totalReturn * 100).toFixed(2)}%
+                    </p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-gray-500">Win Rate</p>
+                    <p className="text-2xl font-bold">{(strategyPerformance.winRate * 100).toFixed(1)}%</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-gray-500">Max Drawdown</p>
+                    <p className="text-2xl font-bold text-red-600">{(strategyPerformance.maxDrawdown * 100).toFixed(1)}%</p>
+                  </div>
+                  <div className="text-center">
+                    <p className="text-sm text-gray-500">Sharpe Ratio</p>
+                    <p className="text-2xl font-bold">{strategyPerformance.sharpeRatio?.toFixed(2) || 'N/A'}</p>
+                  </div>
+                </div>
+                
+                <div className="mt-4">
+                  <ResponsiveContainer width="100%" height={200}>
+                    <LineChart 
+                      data={Array.from({ length: 12 }, (_, i) => ({
+                        month: `Month ${i + 1}`,
+                        value: 10000 * (1 + (strategyPerformance.totalReturn / 100) * (i / 12))
+                      }))}
+                    >
+                      <CartesianGrid strokeDasharray="3 3" />
+                      <XAxis dataKey="month" />
+                      <YAxis tickFormatter={(value) => `$${Number(value).toFixed(0)}`} />
+                      <Tooltip formatter={(value) => [`$${Number(value).toFixed(2)}`, 'Portfolio Value']} />
+                      <Line type="monotone" dataKey="value" stroke="#8884d8" strokeWidth={2} dot={false} />
+                    </LineChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    );
+  };
+
+  const renderMarketTrendForecast = () => {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <TrendingUp className="h-5 w-5" />
+            Market Trend Forecast
+          </CardTitle>
+          <CardDescription>
+            AI-powered market trend analysis and predictions
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {enhancedMarketForecast ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold">Overall Trend</h3>
+                <div className="flex items-center gap-2">
+                  <Badge className={getTrendColor(enhancedMarketForecast.trend)}>
+                    {enhancedMarketForecast.trend.toUpperCase()}
+                  </Badge>
+                  <span className="text-sm text-gray-500">
+                    {(enhancedMarketForecast.confidence * 100).toFixed(0)}% confidence
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={fetchEnhancedMarketTrendForecast}
+                    className="flex items-center gap-1"
+                  >
+                    <RotateCcw className="h-4 w-4" />
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium mb-2">Trend Strength</h4>
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1 bg-gray-200 rounded-full h-2">
+                      <div 
+                        className={`h-2 rounded-full ${
+                          enhancedMarketForecast.technicalAnalysis.trendStrength > 0.7 
+                            ? 'bg-green-500' 
+                            : enhancedMarketForecast.technicalAnalysis.trendStrength > 0.3 
+                            ? 'bg-yellow-500' 
+                            : 'bg-red-500'
+                        }`}
+                        style={{ width: `${enhancedMarketForecast.technicalAnalysis.trendStrength * 100}%` }}
+                      />
+                    </div>
+                    <span className="text-sm font-medium">
+                      {enhancedMarketForecast.technicalAnalysis.trendStrength > 0.7 ? 'Strong' : 
+                       enhancedMarketForecast.technicalAnalysis.trendStrength > 0.3 ? 'Moderate' : 'Weak'}
+                    </span>
+                  </div>
+                </div>
+                
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium mb-2">Timeframe</h4>
+                  <p className="text-sm">{enhancedMarketForecast.timeframe}</p>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium">Key Indicators</h4>
+                <ul className="space-y-1">
+                  {enhancedMarketForecast.keyIndicators.map((indicator: string, index: number) => (
+                    <li key={index} className="text-sm text-gray-600 flex items-start">
+                      <span className="text-blue-500 mr-2">•</span>
+                      {indicator}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium">Potential Catalysts</h4>
+                <ul className="space-y-1">
+                  {enhancedMarketForecast.catalysts.map((catalyst: string, index: number) => (
+                    <li key={index} className="text-sm text-gray-600 flex items-start">
+                      <span className="text-blue-500 mr-2">•</span>
+                      {catalyst}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium">Sector Expectations</h4>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(enhancedMarketForecast.sectorExpectations).map(([sector, expectation]) => (
+                    <div key={sector} className="flex items-center justify-between text-sm">
+                      <span className="capitalize">{sector}:</span>
+                      <Badge variant="outline" className={getTrendColor(expectation)}>
+                        {expectation}
+                      </Badge>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium">Technical Analysis</h4>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-sm text-gray-500">Support Levels</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {enhancedMarketForecast.technicalAnalysis.supportLevels.map((level: number, index: number) => (
+                          <Badge key={index} variant="outline" className="text-green-600 border-green-600">
+                            ${formatCurrency(level)}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500">Resistance Levels</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {enhancedMarketForecast.technicalAnalysis.resistanceLevels.map((level: number, index: number) => (
+                          <Badge key={index} variant="outline" className="text-red-600 border-red-600">
+                            {formatCurrency(level)}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-2">
+                    <p className="text-sm text-gray-500">Volume Analysis</p>
+                    <p className="text-sm">{enhancedMarketForecast.technicalAnalysis.volumeAnalysis}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium">Macro Factors</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
+                  <div>
+                    <span className="text-gray-500">Interest Rates:</span>
+                    <p>{enhancedMarketForecast.macroFactors.interestRates}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Inflation:</span>
+                    <p>{enhancedMarketForecast.macroFactors.inflation}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">GDP Growth:</span>
+                    <p>{enhancedMarketForecast.macroFactors.gdpGrowth}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-500">Employment:</span>
+                    <p>{enhancedMarketForecast.macroFactors.employment}</p>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="space-y-2">
+                <h4 className="font-medium">Risk Factors</h4>
+                <ul className="space-y-1">
+                  {enhancedMarketForecast.riskFactors.map((risk: string, index: number) => (
+                    <li key={index} className="text-sm text-gray-600 flex items-start">
+                      <span className="text-red-500 mr-2">•</span>
+                      {risk}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              
+              <div className="text-xs text-gray-500 mt-4">
+                Last updated: {formatDate(enhancedMarketForecast.lastUpdated)}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <TrendingUp className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                No forecast available
+              </h3>
+              <p className="text-gray-600 mb-4">
+                We're analyzing market data to generate trend forecasts
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={fetchEnhancedMarketTrendForecast}
+              >
+                Generate Forecast
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
   };
 
   return (
@@ -1091,7 +1739,7 @@ export default function DashboardPage() {
                   Found {searchResults.length} results for &quot;{searchQuery}&quot;
                 </div>
                 <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {searchResults.map((stock, index) => (
+                  {searchResults.map((stock: SearchResult, index: number) => (
                     <div key={`${stock.symbol}-${index}`} className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50">
                       <div className="flex-1">
                         <div className="flex items-center gap-2">
@@ -1202,7 +1850,7 @@ export default function DashboardPage() {
               </Card>
             ) : (
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                {watchlist.map((item) => {
+                {watchlist.map((item: WatchlistItem) => {
                   const data = stockData[item.symbol];
                   const isLoading = loading && !data;
                   
@@ -1381,23 +2029,23 @@ export default function DashboardPage() {
                           <XAxis 
                             dataKey="date" 
                             tick={{ fontSize: 12 }}
-                            tickFormatter={(value) => {
+                            tickFormatter={(value: string) => {
                               const date = new Date(value);
                               return `${date.getMonth() + 1}/${date.getDate()}`;
                             }}
                           />
                           <YAxis 
                             tick={{ fontSize: 12 }}
-                            tickFormatter={(value) => `$${value.toFixed(2)}`}
+                            tickFormatter={(value) => `$${Number(value).toFixed(2)}`}
                           />
                           <Tooltip
-                            labelFormatter={(value) => new Date(value).toLocaleDateString('en-US', {
+                            labelFormatter={(value: string) => new Date(value).toLocaleDateString('en-US', {
                               weekday: 'short',
                               year: 'numeric',
                               month: 'short',
                               day: 'numeric'
                             })}
-                            formatter={(value: number, name) => [
+                            formatter={(value: number, name: string) => [
                               formatCurrency(value),
                               name === 'close' ? 'Close Price' : 
                               name === 'high' ? 'High' :
@@ -1450,23 +2098,23 @@ export default function DashboardPage() {
                           <XAxis 
                             dataKey="date" 
                             tick={{ fontSize: 12 }}
-                            tickFormatter={(value) => {
+                            tickFormatter={(value: string) => {
                               const date = new Date(value);
                               return `${date.getMonth() + 1}/${date.getDate()}`;
                             }}
                           />
                           <YAxis 
                             tick={{ fontSize: 12 }}
-                            tickFormatter={(value) => `$${value.toFixed(2)}`}
+                            tickFormatter={(value) => `$${Number(value).toFixed(2)}`}
                           />
                           <Tooltip
-                            labelFormatter={(value) => new Date(value).toLocaleDateString('en-US', {
+                            labelFormatter={(value: string) => new Date(value).toLocaleDateString('en-US', {
                               weekday: 'short',
                               year: 'numeric',
                               month: 'short',
                               day: 'numeric'
                             })}
-                            formatter={(value: number, name) => [
+                            formatter={(value: number, name: string) => [
                               formatCurrency(value),
                               name === 'close' ? 'Close Price' : 
                               name === 'high' ? 'High' :
@@ -1508,23 +2156,23 @@ export default function DashboardPage() {
                           )}
                         </AreaChart>
                       ) : (
-                        // Candlestick chart would require a custom implementation
+                        // Simplified candlestick as composed chart
                         <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                           <XAxis 
                             dataKey="date" 
                             tick={{ fontSize: 12 }}
-                            tickFormatter={(value) => {
+                            tickFormatter={(value: string) => {
                               const date = new Date(value);
                               return `${date.getMonth() + 1}/${date.getDate()}`;
                             }}
                           />
                           <YAxis 
                             tick={{ fontSize: 12 }}
-                            tickFormatter={(value) => `$${value.toFixed(2)}`}
+                            tickFormatter={(value) => `$${Number(value).toFixed(2)}`}
                           />
                           <Tooltip
-                            labelFormatter={(value) => new Date(value).toLocaleDateString('en-US', {
+                            labelFormatter={(value: string) => new Date(value).toLocaleDateString('en-US', {
                               weekday: 'short',
                               year: 'numeric',
                               month: 'short',
@@ -1537,24 +2185,9 @@ export default function DashboardPage() {
                               boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
                             }}
                           />
-                          <Bar
-                            dataKey="high"
-                            fill="#10b981"
-                            shape={(props: any) => {
-                              const { x, y, width, payload } = props;
-                              const height = y - payload.low * (y / payload.high);
-                              return <rect x={x} y={payload.low * (y / payload.high)} width={width} height={height} fill="#10b981" />;
-                            }}
-                          />
-                          <Bar
-                            dataKey="low"
-                            fill="#ef4444"
-                            shape={(props: any) => {
-                              const { x, y, width, payload } = props;
-                              const height = payload.high * (y / payload.high) - y;
-                              return <rect x={x} y={y} width={width} height={height} fill="#ef4444" />;
-                            }}
-                          />
+                          <Bar dataKey="high" fill="#10b981" />
+                          <Bar dataKey="low" fill="#ef4444" />
+                          <Line type="monotone" dataKey="close" stroke="#3b82f6" />
                         </ComposedChart>
                       )}
                     </ResponsiveContainer>
@@ -1567,13 +2200,13 @@ export default function DashboardPage() {
                         <div className="text-center">
                           <p className="text-sm text-gray-500">30-Day High</p>
                           <p className="text-lg font-semibold text-green-600">
-                            {formatCurrency(Math.max(...chartData.map(d => d.high)))}
+                            {formatCurrency(Math.max(...chartData.map((d: ChartData) => d.high)))}
                           </p>
                         </div>
                         <div className="text-center">
                           <p className="text-sm text-gray-500">30-Day Low</p>
                           <p className="text-lg font-semibold text-red-600">
-                            {formatCurrency(Math.min(...chartData.map(d => d.low)))}
+                            {formatCurrency(Math.min(...chartData.map((d: ChartData) => d.low)))}
                           </p>
                         </div>
                         <div className="text-center">
@@ -1598,7 +2231,7 @@ export default function DashboardPage() {
                       <div className="flex items-center justify-between mb-4">
                         <h3 className="text-lg font-semibold">Technical Indicators</h3>
                         <div className="flex items-center gap-2">
-                          <Select value={chartIndicators.join(',')} onValueChange={(value) => setChartIndicators(value.split(','))}>
+                          <Select value={chartIndicators.join(',')} onValueChange={(value: string) => setChartIndicators(value.split(','))}>
                             <SelectTrigger className="w-48">
                               <SelectValue placeholder="Select indicators" />
                             </SelectTrigger>
@@ -1632,7 +2265,7 @@ export default function DashboardPage() {
                         <div className="mb-4">
                           <h4 className="text-md font-medium mb-2">Pattern Recognition</h4>
                           <div className="space-y-2">
-                            {patternRecognition.map((pattern, index) => (
+                            {patternRecognition.map((pattern: PatternRecognitionResult, index: number) => (
                               <Alert key={index} className="bg-blue-50 border-blue-200">
                                 <Info className="h-4 w-4 text-blue-600" />
                                 <AlertTitle className="text-blue-800">{pattern.patternType.replace('_', ' ').toUpperCase()}</AlertTitle>
@@ -1657,7 +2290,7 @@ export default function DashboardPage() {
                             <AlertDescription className="text-purple-700">
                               Confidence: {(pricePrediction.confidence * 100).toFixed(0)}%
                               <ul className="mt-2 list-disc list-inside">
-                                {pricePrediction.factors.map((factor, index) => (
+                                {pricePrediction.factors.map((factor: string, index: number) => (
                                   <li key={index}>{factor}</li>
                                 ))}
                               </ul>
@@ -1693,7 +2326,7 @@ export default function DashboardPage() {
                   </p>
                   {watchlist.length > 0 && (
                     <div className="flex flex-wrap gap-2 justify-center">
-                      {watchlist.slice(0, 5).map((item) => (
+                      {watchlist.slice(0, 5).map((item: WatchlistItem) => (
                         <Button
                           key={item.id}
                           variant="outline"
@@ -1962,7 +2595,7 @@ export default function DashboardPage() {
                           </TableRow>
                         </TableHeader>
                         <TableBody>
-                          {portfolio.map((item) => (
+                          {portfolio.map((item: PortfolioItem) => (
                             <TableRow key={item.id}>
                               <TableCell className="font-medium">{item.symbol}</TableCell>
                               <TableCell>{item.quantity}</TableCell>
@@ -2010,11 +2643,11 @@ export default function DashboardPage() {
                                     dataKey="value"
                                     label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
                                   >
-                                    {portfolioAllocation.map((entry, index) => (
+                                    {portfolioAllocation.map((entry: PortfolioAllocation, index: number) => (
                                       <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
                                     ))}
                                   </Pie>
-                                  <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                                  <Tooltip formatter={(value: number) => formatCurrency(Number(value))} />
                                 </PieChart>
                               </ResponsiveContainer>
                             </div>
@@ -2035,8 +2668,8 @@ export default function DashboardPage() {
                                 <AreaChart data={portfolioPerformance}>
                                   <CartesianGrid strokeDasharray="3 3" />
                                   <XAxis dataKey="date" />
-                                  <YAxis tickFormatter={(value) => `$${value/1000}k`} />
-                                  <Tooltip formatter={(value) => formatCurrency(Number(value))} />
+                                  <YAxis tickFormatter={(value) => `$${Number(value / 1000).toFixed(0)}k`} />
+                                  <Tooltip formatter={(value: number) => formatCurrency(Number(value))} />
                                   <Area type="monotone" dataKey="value" stroke="#8884d8" fill="#8884d8" fillOpacity={0.3} />
                                 </AreaChart>
                               </ResponsiveContainer>
@@ -2065,7 +2698,7 @@ export default function DashboardPage() {
                                         <div>
                                           <span className="font-medium">{rec.symbol}</span>
                                           <span className={`ml-2 px-2 py-1 rounded text-xs ${getActionColor(rec.action)}`}>
-                                            {rec.action.toUpperCase()}
+                                            {rec.action?.toUpperCase()}
                                           </span>
                                         </div>
                                         <div className="text-right">
@@ -2178,7 +2811,7 @@ export default function DashboardPage() {
                         </div>
                       </div>
                       
-                      {aiInsights.map((insight, index) => (
+                      {aiInsights.map((insight: AiInsight, index: number) => (
                         <div key={`${insight.id}-${index}`} className="border rounded-lg p-4">
                           <div className="flex items-center justify-between mb-2">
                             <h3 className="font-semibold">{insight.title}</h3>
@@ -2208,7 +2841,7 @@ export default function DashboardPage() {
                       </p>
                       {watchlist.length > 0 && (
                         <div className="flex flex-wrap gap-2 justify-center">
-                          {watchlist.slice(0, 3).map((item) => (
+                          {watchlist.slice(0, 3).map((item: WatchlistItem) => (
                             <Button
                               key={item.id}
                               variant="outline"
@@ -2281,7 +2914,7 @@ export default function DashboardPage() {
                       </div>
                       
                       <div className="space-y-4 max-h-96 overflow-y-auto">
-                        {news.map((item, index) => (
+                        {news.map((item: NewsItem, index: number) => (
                           <div key={`${item.id}-${index}`} className="border rounded-lg p-4 hover:bg-gray-50">
                             <h3 className="font-semibold mb-2">{item.title}</h3>
                             <p className="text-sm text-gray-600 mb-3 line-clamp-2">{item.summary}</p>
@@ -2312,7 +2945,7 @@ export default function DashboardPage() {
                       </p>
                       {watchlist.length > 0 && (
                         <div className="flex flex-wrap gap-2 justify-center">
-                          {watchlist.slice(0, 3).map((item) => (
+                          {watchlist.slice(0, 3).map((item: WatchlistItem) => (
                             <Button
                               key={item.id}
                               variant="outline"
@@ -2402,7 +3035,7 @@ export default function DashboardPage() {
                       
                       {/* Recommendations List */}
                       <div className="space-y-3 max-h-96 overflow-y-auto">
-                        {recommendationsData.recommendations.map((rec) => (
+                        {recommendationsData.recommendations.map((rec: StockRecommendation) => (
                           <div key={rec.id} className="border rounded-lg p-4 hover:bg-gray-50">
                             <div className="flex items-start justify-between mb-3">
                               <div className="flex-1">
@@ -2425,7 +3058,7 @@ export default function DashboardPage() {
                               </div>
                             </div>
                             <p className="text-sm text-gray-600 mb-3">{rec.reason}</p>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                            <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-sm">
                               {rec.currentPrice && (
                                 <div>
                                   <span className="text-gray-500">Current:</span>
@@ -2443,6 +3076,14 @@ export default function DashboardPage() {
                                   <span className="text-gray-500">Upside:</span>
                                   <div className={`font-medium ${rec.upside >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                     {formatPercentage(rec.upside)}
+                                  </div>
+                                </div>
+                              )}
+                              {rec.downside !== undefined && (
+                                <div>
+                                  <span className="text-gray-500">Downside:</span>
+                                  <div className={`font-medium ${rec.downside >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {formatPercentage(rec.downside)}
                                   </div>
                                 </div>
                               )}
@@ -2545,7 +3186,7 @@ export default function DashboardPage() {
                                       : 'bg-gray-500'
                                   }`}
                                   style={{ width: `${Math.abs(sentiment) * 100}%` }}
-                                ></div>
+                                />
                               </div>
                               <span className="text-sm">{sentiment.toFixed(2)}</span>
                             </div>
@@ -2556,7 +3197,7 @@ export default function DashboardPage() {
                       <div className="space-y-2">
                         <h4 className="font-medium">Key Topics</h4>
                         <div className="flex flex-wrap gap-2">
-                          {socialMediaSentiment.keyTopics.map((topic, index) => (
+                          {socialMediaSentiment.keyTopics.map((topic: string, index: number) => (
                             <Badge key={index} variant="outline">{topic}</Badge>
                           ))}
                         </div>
@@ -2573,7 +3214,7 @@ export default function DashboardPage() {
                         </p>
                         {watchlist.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-2">
-                            {watchlist.slice(0, 3).map((item) => (
+                            {watchlist.slice(0, 3).map((item: WatchlistItem) => (
                               <Button
                                 key={item.id}
                                 variant="outline"
@@ -2598,7 +3239,7 @@ export default function DashboardPage() {
                       </p>
                       {watchlist.length > 0 && (
                         <div className="flex flex-wrap gap-2 justify-center">
-                          {watchlist.slice(0, 3).map((item) => (
+                          {watchlist.slice(0, 3).map((item: WatchlistItem) => (
                             <Button
                               key={item.id}
                               variant="outline"
@@ -2629,7 +3270,7 @@ export default function DashboardPage() {
                 <CardContent>
                   {patternRecognition.length > 0 ? (
                     <div className="space-y-4">
-                      {patternRecognition.map((pattern, index) => (
+                      {patternRecognition.map((pattern: PatternRecognitionResult, index: number) => (
                         <div key={index} className="border rounded-lg p-4">
                           <div className="flex items-center justify-between mb-2">
                             <h3 className="font-semibold">{pattern.patternType.replace('_', ' ').toUpperCase()}</h3>
@@ -2647,7 +3288,7 @@ export default function DashboardPage() {
                         </p>
                         {watchlist.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-2">
-                            {watchlist.slice(0, 3).map((item) => (
+                            {watchlist.slice(0, 3).map((item: WatchlistItem) => (
                               <Button
                                 key={item.id}
                                 variant="outline"
@@ -2672,7 +3313,7 @@ export default function DashboardPage() {
                       </p>
                       {watchlist.length > 0 && (
                         <div className="flex flex-wrap gap-2 justify-center">
-                          {watchlist.slice(0, 3).map((item) => (
+                          {watchlist.slice(0, 3).map((item: WatchlistItem) => (
                             <Button
                               key={item.id}
                               variant="outline"
@@ -2722,7 +3363,7 @@ export default function DashboardPage() {
                       <div className="space-y-2">
                         <h4 className="font-medium">Key Factors</h4>
                         <ul className="space-y-1">
-                          {pricePrediction.factors.map((factor, index) => (
+                          {pricePrediction.factors.map((factor: string, index: number) => (
                             <li key={index} className="text-sm text-gray-600 flex items-start">
                               <span className="text-blue-500 mr-2">•</span>
                               {factor}
@@ -2737,7 +3378,7 @@ export default function DashboardPage() {
                         </p>
                         {watchlist.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-2">
-                            {watchlist.slice(0, 3).map((item) => (
+                            {watchlist.slice(0, 3).map((item: WatchlistItem) => (
                               <Button
                                 key={item.id}
                                 variant="outline"
@@ -2762,7 +3403,7 @@ export default function DashboardPage() {
                       </p>
                       {watchlist.length > 0 && (
                         <div className="flex flex-wrap gap-2 justify-center">
-                          {watchlist.slice(0, 3).map((item) => (
+                          {watchlist.slice(0, 3).map((item: WatchlistItem) => (
                             <Button
                               key={item.id}
                               variant="outline"
@@ -2793,7 +3434,7 @@ export default function DashboardPage() {
                 <CardContent>
                   {fraudAlerts.length > 0 ? (
                     <div className="space-y-4">
-                      {fraudAlerts.map((alert, index) => (
+                      {fraudAlerts.map((alert: FraudAlertResult, index: number) => (
                         <Alert key={index} className={getAlertTypeColor(alert.alertType)}>
                           <AlertTriangle className="h-4 w-4" />
                           <AlertTitle>{alert.alertType.replace('_', ' ').toUpperCase()}</AlertTitle>
@@ -2804,7 +3445,7 @@ export default function DashboardPage() {
                               <div className="mt-2">
                                 <p className="font-medium">Indicators:</p>
                                 <ul className="list-disc list-inside">
-                                  {alert.indicators.map((indicator, i) => (
+                                  {alert.indicators.map((indicator: string, i: number) => (
                                     <li key={i} className="text-sm">{indicator}</li>
                                   ))}
                                 </ul>
@@ -2819,7 +3460,7 @@ export default function DashboardPage() {
                         </p>
                         {watchlist.length > 0 && (
                           <div className="flex flex-wrap gap-2 mt-2">
-                            {watchlist.slice(0, 3).map((item) => (
+                            {watchlist.slice(0, 3).map((item: WatchlistItem) => (
                               <Button
                                 key={item.id}
                                 variant="outline"
@@ -2844,7 +3485,7 @@ export default function DashboardPage() {
                       </p>
                       {watchlist.length > 0 && (
                         <div className="flex flex-wrap gap-2 justify-center">
-                          {watchlist.slice(0, 3).map((item) => (
+                          {watchlist.slice(0, 3).map((item: WatchlistItem) => (
                             <Button
                               key={item.id}
                               variant="outline"
@@ -2865,199 +3506,8 @@ export default function DashboardPage() {
           
           {/* Trading Strategies Tab */}
           <TabsContent value="strategies" className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
-              {/* Trading Strategies */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Target className="h-5 w-5" />
-                    Automated Trading Strategies
-                  </CardTitle>
-                  <CardDescription>
-                    AI-generated trading strategies based on your risk profile
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {tradingStrategies.length > 0 ? (
-                    <div className="space-y-4">
-                      {tradingStrategies.map((strategy, index) => (
-                        <div key={index} className="border rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-semibold">{strategy.name}</h3>
-                            <Button size="sm" variant="outline">
-                              {strategy.performance ? 'Active' : 'Activate'}
-                            </Button>
-                          </div>
-                          <p className="text-sm text-gray-600 mb-3">{strategy.description}</p>
-                          
-                          {strategy.parameters && (
-                            <div className="space-y-2 mb-3">
-                              <h4 className="font-medium text-sm">Parameters</h4>
-                              <div className="bg-gray-50 p-2 rounded text-xs">
-                                {Object.entries(strategy.parameters).map(([key, value]) => (
-                                  <div key={key} className="flex justify-between">
-                                    <span className="font-medium">{key}:</span>
-                                    <span>{typeof value === 'string' ? value : JSON.stringify(value)}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                          
-                          {strategy.performance && (
-                            <div className="space-y-2">
-                              <h4 className="font-medium text-sm">Performance</h4>
-                              <div className="bg-gray-50 p-2 rounded text-xs">
-                                {Object.entries(strategy.performance).map(([key, value]) => (
-                                  <div key={key} className="flex justify-between">
-                                    <span className="font-medium">{key}:</span>
-                                    <span>{typeof value === 'string' ? value : JSON.stringify(value)}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      ))}
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={fetchTradingStrategies}
-                        className="w-full"
-                      >
-                        <RotateCcw className="h-4 w-4 mr-2" />
-                        Refresh Strategies
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <Target className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                        No strategies available
-                      </h3>
-                      <p className="text-gray-600 mb-4">
-                        We're generating personalized trading strategies based on your risk profile
-                      </p>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={fetchTradingStrategies}
-                      >
-                        Generate Strategies
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-              
-              {/* Market Trend Forecast */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5" />
-                    Market Trend Forecast
-                  </CardTitle>
-                  <CardDescription>
-                    AI-powered market trend analysis and predictions
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  {marketTrendForecast ? (
-                    <div className="space-y-4">
-                      <div className="flex items-center justify-between">
-                        <h3 className="text-lg font-semibold">Overall Trend</h3>
-                        <Badge className={getTrendColor(marketTrendForecast.trend)}>
-                          {marketTrendForecast.trend.toUpperCase()}
-                        </Badge>
-                      </div>
-                      
-                      <div className="text-center py-2">
-                        <div className="text-sm text-gray-500">
-                          {(marketTrendForecast.confidence * 100).toFixed(0)}% confidence
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <h4 className="font-medium">Key Indicators</h4>
-                        <ul className="space-y-1">
-                          {marketTrendForecast.keyIndicators.map((indicator, index) => (
-                            <li key={index} className="text-sm text-gray-600 flex items-start">
-                              <span className="text-blue-500 mr-2">•</span>
-                              {indicator}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <h4 className="font-medium">Potential Catalysts</h4>
-                        <ul className="space-y-1">
-                          {marketTrendForecast.catalysts.map((catalyst, index) => (
-                            <li key={index} className="text-sm text-gray-600 flex items-start">
-                              <span className="text-blue-500 mr-2">•</span>
-                              {catalyst}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <h4 className="font-medium">Sector Expectations</h4>
-                        <div className="grid grid-cols-2 gap-2">
-                          {Object.entries(marketTrendForecast.sectorExpectations).map(([sector, expectation]) => (
-                            <div key={sector} className="flex items-center justify-between text-sm">
-                              <span className="capitalize">{sector}:</span>
-                              <Badge variant="outline" className={getTrendColor(expectation)}>
-                                {expectation}
-                              </Badge>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <h4 className="font-medium">Risk Factors</h4>
-                        <ul className="space-y-1">
-                          {marketTrendForecast.riskFactors.map((risk, index) => (
-                            <li key={index} className="text-sm text-gray-600 flex items-start">
-                              <span className="text-red-500 mr-2">•</span>
-                              {risk}
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-                      
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={fetchMarketTrendForecast}
-                        className="w-full"
-                      >
-                        <RotateCcw className="h-4 w-4 mr-2" />
-                        Refresh Forecast
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="text-center py-8">
-                      <TrendingUp className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                        No forecast available
-                      </h3>
-                      <p className="text-gray-600 mb-4">
-                        We're analyzing market data to generate trend forecasts
-                      </p>
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        onClick={fetchMarketTrendForecast}
-                      >
-                        Generate Forecast
-                      </Button>
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            </div>
+            {renderTradingStrategiesTab()}
+            {renderMarketTrendForecast()}
             
             {/* Financial Chatbot */}
             <Card className="mt-4">
@@ -3080,7 +3530,7 @@ export default function DashboardPage() {
                       </div>
                     ) : (
                       <div className="space-y-4">
-                        {chatbotMessages.map((message) => (
+                        {chatbotMessages.map((message: ChatbotMessage) => (
                           <div key={message.id} className="space-y-2">
                             <div className="flex justify-end">
                               <div className="max-w-xs bg-blue-500 text-white rounded-lg p-3">

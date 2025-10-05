@@ -48,6 +48,7 @@ interface RecommendationResponse {
     priceTarget?: number;
     currentPrice?: number;
     upside?: number;
+    downside?: number;
     timeHorizon: string;
     riskLevel: 'low' | 'medium' | 'high';
     sector?: string;
@@ -93,14 +94,49 @@ function isHoldRecommendation(rec: any): rec is { action: 'hold' } {
   return rec.action === 'hold';
 }
 
+// Helper function to fetch stock data
+async function fetchStockData(symbol: string): Promise<any> {
+  try {
+    const response = await fetch(`${process.env.NEXTAUTH_URL || 'http://localhost:3000'}/api/stocks/${symbol}`);
+    if (response.ok) {
+      return await response.json();
+    }
+    return null;
+  } catch {
+    return null;
+  }
+}
+
+// Helper function to create keyMetrics safely
+function createKeyMetrics(stockData: any): RecommendationResponse['recommendations'][number]['keyMetrics'] | undefined {
+  if (!stockData) return undefined;
+
+  const metrics: any = {};
+  
+  if (typeof stockData.marketCap === 'number') metrics.marketCap = stockData.marketCap;
+  if (typeof stockData.volume === 'number') metrics.volume = stockData.volume;
+  if (typeof stockData.avgVolume === 'number') metrics.avgVolume = stockData.avgVolume;
+  if (typeof stockData.high === 'number') metrics.dayHigh = stockData.high;
+  if (typeof stockData.low === 'number') metrics.dayLow = stockData.low;
+  if (typeof stockData.week52High === 'number') metrics.week52High = stockData.week52High;
+  if (typeof stockData.week52Low === 'number') metrics.week52Low = stockData.week52Low;
+
+  return Object.keys(metrics).length > 0 ? metrics : undefined;
+}
+
 // GET handler for retrieving stock recommendations
 export async function GET(request: NextRequest) {
   try {
+    console.log("🔍 GET /api/ai/recommendations called");
+    
     const session = await getServerSession(authOptions);
     
     if (!session?.user?.id) {
+      console.log("❌ Unauthorized request");
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    console.log(`✅ User authenticated: ${session.user.id}`);
 
     const { searchParams } = new URL(request.url);
     const limit = parseInt(searchParams.get('limit') || '10');
@@ -117,6 +153,9 @@ export async function GET(request: NextRequest) {
         where: { userId: session.user.id }
       }).catch(() => null)
     ]);
+
+    console.log(`📊 Portfolio items: ${portfolio.length}`);
+    console.log(`⚙️ User preferences:`, userPreferences);
 
     // Provide default preferences if none exist
     const preferences = userPreferences || {
@@ -137,21 +176,50 @@ export async function GET(request: NextRequest) {
       skip: offset
     }).catch(() => []);
 
+    console.log(`📋 Existing recommendations: ${existingRecommendations.length}`);
+
     // If we have recent recommendations, return them
     if (existingRecommendations.length > 0) {
+      console.log("✅ Returning existing recommendations");
+
+      // Fetch stock data for existing recommendations
+      const stockDataPromises = existingRecommendations.map(rec => fetchStockData(rec.symbol));
+      const stockDataArray = await Promise.all(stockDataPromises);
+
       const response: RecommendationResponse = {
-        recommendations: existingRecommendations.map(rec => ({
-          id: rec.id,
-          symbol: rec.symbol,
-          action: rec.action as 'buy' | 'sell' | 'hold',
-          confidence: rec.confidence,
-          reason: rec.reason,
-          priceTarget: rec.priceTarget ?? undefined,
-          timeHorizon: 'medium-term',
-          riskLevel: preferences.riskTolerance === 'aggressive' ? 'high' : 
-                     preferences.riskTolerance === 'conservative' ? 'low' : 'medium',
-          isRead: rec.isRead
-        })),
+        recommendations: existingRecommendations.map((rec, index) => {
+          const stockData = stockDataArray[index];
+          const currentPrice = stockData?.price;
+          const priceTarget = rec.priceTarget ?? undefined;
+          const upside = priceTarget && currentPrice ? 
+            ((priceTarget - currentPrice) / currentPrice * 100) : undefined;
+          const downside = priceTarget && currentPrice && priceTarget < currentPrice ? 
+            Math.abs(upside!) : (currentPrice && stockData?.week52Low ? 
+            ((currentPrice - stockData.week52Low) / currentPrice * 100) * -1 : undefined);
+
+          return {
+            id: rec.id,
+            symbol: rec.symbol,
+            companyName: stockData?.companyName,
+            action: rec.action as 'buy' | 'sell' | 'hold',
+            confidence: rec.confidence,
+            reason: rec.reason,
+            priceTarget,
+            currentPrice,
+            upside,
+            downside,
+            timeHorizon: 'medium-term',
+            riskLevel: preferences.riskTolerance === 'aggressive' ? 'high' : 
+                       preferences.riskTolerance === 'conservative' ? 'low' : 'medium',
+            sector: stockData?.sector,
+            marketCap: stockData?.marketCap,
+            peRatio: stockData?.peRatio,
+            dividendYield: stockData?.dividendYield,
+            analystRating: stockData?.analystRating,
+            keyMetrics: createKeyMetrics(stockData),
+            isRead: rec.isRead
+          };
+        }),
         summary: {
           totalRecommendations: existingRecommendations.length,
           buySignals: existingRecommendations.filter(isBuyRecommendation).length,
@@ -167,10 +235,12 @@ export async function GET(request: NextRequest) {
         }
       };
 
+      console.log("📤 Response:", response);
       return NextResponse.json(response);
     }
 
     // Generate new recommendations if none exist
+    console.log("🔄 Generating new recommendations");
     try {
       const recommendations = await AiService.generateStockRecommendations(
         session.user.id,
@@ -178,18 +248,45 @@ export async function GET(request: NextRequest) {
         preferences
       );
 
+      console.log(`🤖 AI generated ${recommendations.length} recommendations:`, recommendations);
+
+      // Fetch stock data for new recommendations
+      const stockDataPromises = recommendations.map(rec => fetchStockData(rec.symbol));
+      const stockDataArray = await Promise.all(stockDataPromises);
+
       const response: RecommendationResponse = {
-        recommendations: recommendations.map((rec, index) => ({
-          id: `rec-${Date.now()}-${index}`,
-          symbol: rec.symbol,
-          action: rec.action,
-          confidence: rec.confidence,
-          reason: rec.reason,
-          priceTarget: rec.priceTarget,
-          timeHorizon: rec.timeHorizon,
-          riskLevel: preferences.riskTolerance === 'aggressive' ? 'high' : 
-                     preferences.riskTolerance === 'conservative' ? 'low' : 'medium'
-        })),
+        recommendations: recommendations.map((rec, index) => {
+          const stockData = stockDataArray[index];
+          const currentPrice = stockData?.price;
+          const priceTarget = rec.priceTarget;
+          const upside = priceTarget && currentPrice ? 
+            ((priceTarget - currentPrice) / currentPrice * 100) : undefined;
+          const downside = priceTarget && currentPrice && priceTarget < currentPrice ? 
+            Math.abs(upside!) : (currentPrice && stockData?.week52Low ? 
+            ((currentPrice - stockData.week52Low) / currentPrice * 100) * -1 : undefined);
+
+          return {
+            id: `rec-${Date.now()}-${index}`,
+            symbol: rec.symbol,
+            companyName: stockData?.companyName,
+            action: rec.action,
+            confidence: rec.confidence,
+            reason: rec.reason,
+            priceTarget,
+            currentPrice,
+            upside,
+            downside,
+            timeHorizon: rec.timeHorizon,
+            riskLevel: preferences.riskTolerance === 'aggressive' ? 'high' : 
+                       preferences.riskTolerance === 'conservative' ? 'low' : 'medium',
+            sector: stockData?.sector,
+            marketCap: stockData?.marketCap,
+            peRatio: stockData?.peRatio,
+            dividendYield: stockData?.dividendYield,
+            analystRating: stockData?.analystRating,
+            keyMetrics: createKeyMetrics(stockData)
+          };
+        }),
         summary: {
           totalRecommendations: recommendations.length,
           buySignals: recommendations.filter(isBuyRecommendation).length,
@@ -205,9 +302,10 @@ export async function GET(request: NextRequest) {
         }
       };
 
+      console.log("📤 Response:", response);
       return NextResponse.json(response);
     } catch (aiError) {
-      console.error('AI service error:', aiError);
+      console.error('❌ AI service error:', aiError);
       
       // Return fallback recommendations
       const fallbackRecommendations = [
@@ -265,6 +363,7 @@ export async function GET(request: NextRequest) {
         }
       ];
 
+      console.log("📤 Fallback response:", fallbackRecommendations);
       const response: RecommendationResponse = {
         recommendations: fallbackRecommendations,
         summary: {
@@ -285,7 +384,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(response);
     }
   } catch (error) {
-    console.error('Stock recommendations error:', error);
+    console.error('❌ Stock recommendations error:', error);
     return NextResponse.json({ 
       error: 'Failed to generate stock recommendations',
       details: error instanceof Error ? error.message : 'Unknown error'
@@ -381,6 +480,14 @@ export async function POST(request: NextRequest) {
       recommendations: recommendations.map((rec, index) => {
         const stockData = stockDataArray[index];
         const savedRec = savedRecommendations[index];
+        const currentPrice = stockData?.price;
+        const priceTarget = savedRec?.priceTarget ?? rec.priceTarget;
+        const upside = priceTarget && currentPrice ? 
+          ((priceTarget - currentPrice) / currentPrice * 100) : undefined;
+        const downside = priceTarget && currentPrice && priceTarget < currentPrice ? 
+          Math.abs(upside!) : (currentPrice && stockData?.week52Low ? 
+          ((currentPrice - stockData.week52Low) / currentPrice * 100) * -1 : undefined);
+
         return {
           id: savedRec?.id || `rec-${Date.now()}-${index}`,
           symbol: rec.symbol,
@@ -388,21 +495,19 @@ export async function POST(request: NextRequest) {
           action: rec.action,
           confidence: rec.confidence,
           reason: rec.reason,
-          priceTarget: savedRec?.priceTarget ?? rec.priceTarget,
-          currentPrice: stockData?.price,
-          upside: rec.priceTarget && stockData?.price ? 
-            ((rec.priceTarget - stockData.price) / stockData.price * 100) : undefined,
+          priceTarget,
+          currentPrice,
+          upside,
+          downside,
           timeHorizon: rec.timeHorizon,
           riskLevel: riskTolerance === 'aggressive' ? 'high' : 
                      riskTolerance === 'conservative' ? 'low' : 'medium',
-          keyMetrics: stockData ? {
-            marketCap: stockData.volume * stockData.price, // Approximate
-            volume: stockData.volume,
-            dayHigh: stockData.high,
-            dayLow: stockData.low,
-            week52High: stockData.week52High,
-            week52Low: stockData.week52Low
-          } : undefined
+          sector: stockData?.sector,
+          marketCap: stockData?.marketCap,
+          peRatio: stockData?.peRatio,
+          dividendYield: stockData?.dividendYield,
+          analystRating: stockData?.analystRating,
+          keyMetrics: createKeyMetrics(stockData)
         };
       }),
       summary: {

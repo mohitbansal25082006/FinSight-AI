@@ -122,12 +122,54 @@ interface PortfolioPerformance {
 }
 
 interface StockRecommendation {
+  id: string;
   symbol: string;
+  companyName?: string;
   action: 'buy' | 'sell' | 'hold';
   confidence: number;
   reason: string;
   priceTarget?: number;
+  currentPrice?: number;
+  upside?: number;
+  downside?: number;
   timeHorizon: string;
+  riskLevel: 'low' | 'medium' | 'high';
+  sector?: string;
+  marketCap?: string;
+  peRatio?: number;
+  dividendYield?: number;
+  analystRating?: string;
+  keyMetrics?: {
+    marketCap?: number;
+    volume?: number;
+    avgVolume?: number;
+    dayHigh?: number;
+    dayLow?: number;
+    week52High?: number;
+    week52Low?: number;
+  };
+  isRead: boolean;
+}
+
+interface RecommendationSummary {
+  totalRecommendations: number;
+  buySignals: number;
+  sellSignals: number;
+  holdSignals: number;
+  avgConfidence: number;
+  lastUpdated: string;
+}
+
+interface MarketContext {
+  marketTrend: 'bullish' | 'bearish' | 'neutral';
+  volatility: 'low' | 'medium' | 'high';
+  sentiment: 'positive' | 'negative' | 'neutral';
+}
+
+interface RecommendationResponse {
+  recommendations: StockRecommendation[];
+  summary: RecommendationSummary;
+  marketContext?: MarketContext;
 }
 
 interface SocialMediaSentiment {
@@ -188,7 +230,7 @@ export default function DashboardPage() {
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [aiInsights, setAiInsights] = useState<AiInsight[]>([]);
-  const [stockRecommendations, setStockRecommendations] = useState<StockRecommendation[]>([]);
+  const [recommendationsData, setRecommendationsData] = useState<RecommendationResponse | null>(null);
   const [socialMediaSentiment, setSocialMediaSentiment] = useState<SocialMediaSentiment | null>(null);
   const [patternRecognition, setPatternRecognition] = useState<PatternRecognitionResult[]>([]);
   const [pricePrediction, setPricePrediction] = useState<PricePredictionResult | null>(null);
@@ -567,13 +609,16 @@ export default function DashboardPage() {
       const response = await fetch('/api/ai/recommendations');
       
       if (response.ok) {
-        const data = await response.json();
-        setStockRecommendations(data);
+        const data: RecommendationResponse = await response.json();
+        setRecommendationsData(data);
+        toast.success(`Loaded ${data.recommendations.length} recommendations`);
       } else {
         console.error('Failed to fetch stock recommendations');
+        toast.error('Failed to load recommendations');
       }
     } catch (error) {
       console.error('Error fetching stock recommendations:', error);
+      toast.error('Failed to load recommendations');
     }
   };
 
@@ -2309,34 +2354,119 @@ export default function DashboardPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  {stockRecommendations.length > 0 ? (
+                  {recommendationsData && recommendationsData.recommendations.length > 0 ? (
                     <div className="space-y-4">
-                      {stockRecommendations.map((rec, index) => (
-                        <div key={index} className="border rounded-lg p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-semibold">{rec.symbol}</h3>
-                            <div className="flex items-center gap-2">
-                              <Badge className={getActionColor(rec.action)}>
-                                {rec.action.toUpperCase()}
-                              </Badge>
-                              <span className="text-sm text-gray-500">
-                                {rec.confidence * 100}% confidence
-                              </span>
-                            </div>
-                          </div>
-                          <p className="text-sm text-gray-600 mb-2">{rec.reason}</p>
-                          {rec.priceTarget && (
-                            <div className="flex items-center justify-between text-sm">
-                              <span className="text-gray-500">Price Target:</span>
-                              <span className="font-medium">{formatCurrency(rec.priceTarget)}</span>
-                            </div>
-                          )}
-                          <div className="flex items-center justify-between text-sm">
-                            <span className="text-gray-500">Time Horizon:</span>
-                            <span className="font-medium">{rec.timeHorizon}</span>
-                          </div>
+                      {/* Summary */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4 p-3 bg-gray-50 rounded-lg">
+                        <div className="text-center">
+                          <p className="text-sm font-medium text-gray-600">Total</p>
+                          <p className="text-lg font-bold">{recommendationsData.summary.totalRecommendations}</p>
                         </div>
-                      ))}
+                        <div className="text-center">
+                          <p className="text-sm font-medium text-gray-600">Buy</p>
+                          <p className="text-lg font-bold text-green-600">{recommendationsData.summary.buySignals}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm font-medium text-gray-600">Sell</p>
+                          <p className="text-lg font-bold text-red-600">{recommendationsData.summary.sellSignals}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="text-sm font-medium text-gray-600">Avg Confidence</p>
+                          <p className="text-lg font-bold">{(recommendationsData.summary.avgConfidence * 100).toFixed(0)}%</p>
+                        </div>
+                      </div>
+                      
+                      {/* Market Context */}
+                      {recommendationsData.marketContext && (
+                        <Alert className="mb-4">
+                          <Activity className="h-4 w-4" />
+                          <AlertTitle>Market Context</AlertTitle>
+                          <AlertDescription>
+                            <div className="grid grid-cols-3 gap-2 text-sm">
+                              <div className="text-center">
+                                <p className="font-medium">{recommendationsData.marketContext.marketTrend}</p>
+                                <p className="text-xs text-gray-500">Trend</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="font-medium">{recommendationsData.marketContext.volatility}</p>
+                                <p className="text-xs text-gray-500">Volatility</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="font-medium">{recommendationsData.marketContext.sentiment}</p>
+                                <p className="text-xs text-gray-500">Sentiment</p>
+                              </div>
+                            </div>
+                          </AlertDescription>
+                        </Alert>
+                      )}
+                      
+                      {/* Recommendations List */}
+                      <div className="space-y-3 max-h-96 overflow-y-auto">
+                        {recommendationsData.recommendations.map((rec) => (
+                          <div key={rec.id} className="border rounded-lg p-4 hover:bg-gray-50">
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <h3 className="font-semibold text-lg">{rec.symbol}</h3>
+                                  {rec.companyName && <span className="text-sm text-gray-500">({rec.companyName})</span>}
+                                </div>
+                                <Badge className={getActionColor(rec.action)}>
+                                  {rec.action.toUpperCase()}
+                                </Badge>
+                              </div>
+                              <div className="text-right">
+                                <div className={`text-sm font-medium px-2 py-1 rounded-full ${
+                                  rec.confidence > 0.7 ? 'bg-green-100 text-green-700' : 
+                                  rec.confidence > 0.5 ? 'bg-yellow-100 text-yellow-700' : 'bg-red-100 text-red-700'
+                                }`}>
+                                  {rec.isRead ? <EyeOff className="h-3 w-3 inline mr-1" /> : <Eye className="h-3 w-3 inline mr-1" />}
+                                  {(rec.confidence * 100).toFixed(0)}%
+                                </div>
+                              </div>
+                            </div>
+                            <p className="text-sm text-gray-600 mb-3">{rec.reason}</p>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                              {rec.currentPrice && (
+                                <div>
+                                  <span className="text-gray-500">Current:</span>
+                                  <div className="font-medium">{formatCurrency(rec.currentPrice)}</div>
+                                </div>
+                              )}
+                              {rec.priceTarget && (
+                                <div>
+                                  <span className="text-gray-500">Target:</span>
+                                  <div className="font-medium">{formatCurrency(rec.priceTarget)}</div>
+                                </div>
+                              )}
+                              {rec.upside !== undefined && (
+                                <div>
+                                  <span className="text-gray-500">Upside:</span>
+                                  <div className={`font-medium ${rec.upside >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                                    {formatPercentage(rec.upside)}
+                                  </div>
+                                </div>
+                              )}
+                              {rec.timeHorizon && (
+                                <div>
+                                  <span className="text-gray-500">Horizon:</span>
+                                  <div className="font-medium capitalize">{rec.timeHorizon}</div>
+                                </div>
+                              )}
+                            </div>
+                            {rec.keyMetrics && (
+                              <div className="mt-2 pt-2 border-t text-xs">
+                                <p className="font-medium mb-1">Key Metrics</p>
+                                <div className="grid grid-cols-2 gap-2">
+                                  {rec.keyMetrics.marketCap && <div>Market Cap: ${rec.keyMetrics.marketCap.toLocaleString()}</div>}
+                                  {rec.keyMetrics.volume && <div>Volume: {formatVolume(rec.keyMetrics.volume)}</div>}
+                                  {rec.keyMetrics.dayHigh && <div>Day High: {formatCurrency(rec.keyMetrics.dayHigh)}</div>}
+                                  {rec.keyMetrics.dayLow && <div>Day Low: {formatCurrency(rec.keyMetrics.dayLow)}</div>}
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
                       <Button 
                         variant="outline" 
                         size="sm" 

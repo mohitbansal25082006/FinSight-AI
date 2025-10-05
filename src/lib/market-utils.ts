@@ -1,3 +1,4 @@
+// F:\finsight-ai\src\lib\market-utils.ts
 export interface MarketData {
   symbol: string;
   price: number;
@@ -18,6 +19,20 @@ export interface ChartDataPoint {
   low: number;
   close: number;
   volume: number;
+}
+
+export interface TechnicalIndicator {
+  name: string;
+  values: number[];
+  signals: string[];
+}
+
+export interface PatternData {
+  patternType: string;
+  confidence: number;
+  startPoint: number;
+  endPoint: number;
+  description: string;
 }
 
 export class MarketUtils {
@@ -82,6 +97,246 @@ export class MarketUtils {
       sma.push(sum / period);
     }
     return sma;
+  }
+
+  /**
+   * Calculate exponential moving average
+   */
+  static calculateEMA(data: number[], period: number): number[] {
+    const ema: number[] = [];
+    const multiplier = 2 / (period + 1);
+    
+    // Start with SMA for the first EMA value
+    const initialSMA = data.slice(0, period).reduce((a, b) => a + b, 0) / period;
+    ema.push(initialSMA);
+    
+    // Calculate EMA for the rest of the data
+    for (let i = period; i < data.length; i++) {
+      const currentEMA = (data[i] - ema[ema.length - 1]) * multiplier + ema[ema.length - 1];
+      ema.push(currentEMA);
+    }
+    
+    return ema;
+  }
+
+  /**
+   * Calculate Relative Strength Index (RSI)
+   */
+  static calculateRSI(data: number[], period: number = 14): number[] {
+    if (data.length < period + 1) return [];
+    
+    const rsi: number[] = [];
+    let gains = 0;
+    let losses = 0;
+    
+    // Calculate initial average gains and losses
+    for (let i = 1; i <= period; i++) {
+      const difference = data[i] - data[i - 1];
+      if (difference > 0) {
+        gains += difference;
+      } else {
+        losses -= difference;
+      }
+    }
+    
+    let avgGain = gains / period;
+    let avgLoss = losses / period;
+    
+    // Calculate initial RSI
+    const rs = avgGain / avgLoss;
+    rsi.push(100 - (100 / (1 + rs)));
+    
+    // Calculate RSI for the rest of the data
+    for (let i = period + 1; i < data.length; i++) {
+      const difference = data[i] - data[i - 1];
+      
+      if (difference > 0) {
+        avgGain = (avgGain * (period - 1) + difference) / period;
+        avgLoss = (avgLoss * (period - 1)) / period;
+      } else {
+        avgGain = (avgGain * (period - 1)) / period;
+        avgLoss = (avgLoss * (period - 1) - difference) / period;
+      }
+      
+      const rs = avgGain / avgLoss;
+      rsi.push(100 - (100 / (1 + rs)));
+    }
+    
+    return rsi;
+  }
+
+  /**
+   * Calculate MACD (Moving Average Convergence Divergence)
+   */
+  static calculateMACD(data: number[], fastPeriod: number = 12, slowPeriod: number = 26, signalPeriod: number = 9): {
+    macd: number[];
+    signal: number[];
+    histogram: number[];
+  } {
+    const fastEMA = this.calculateEMA(data, fastPeriod);
+    const slowEMA = this.calculateEMA(data, slowPeriod);
+    
+    // Calculate MACD line
+    const startIndex = slowPeriod - fastPeriod;
+    const macd: number[] = [];
+    for (let i = 0; i < fastEMA.length - startIndex; i++) {
+      macd.push(fastEMA[i + startIndex] - slowEMA[i]);
+    }
+    
+    // Calculate signal line
+    const signal = this.calculateEMA(macd, signalPeriod);
+    
+    // Calculate histogram
+    const histogram: number[] = [];
+    for (let i = 0; i < signal.length; i++) {
+      histogram.push(macd[i + (macd.length - signal.length)] - signal[i]);
+    }
+    
+    return { macd, signal, histogram };
+  }
+
+  /**
+   * Calculate Bollinger Bands
+   */
+  static calculateBollingerBands(data: number[], period: number = 20, stdDev: number = 2): {
+    upperBand: number[];
+    middleBand: number[];
+    lowerBand: number[];
+  } {
+    const middleBand = this.calculateSMA(data, period);
+    const upperBand: number[] = [];
+    const lowerBand: number[] = [];
+    
+    for (let i = period - 1; i < data.length; i++) {
+      const slice = data.slice(i - period + 1, i + 1);
+      const mean = slice.reduce((a, b) => a + b, 0) / period;
+      
+      // Calculate standard deviation
+      const squaredDiffs = slice.map(value => Math.pow(value - mean, 2));
+      const variance = squaredDiffs.reduce((a, b) => a + b, 0) / period;
+      const standardDeviation = Math.sqrt(variance);
+      
+      upperBand.push(mean + (standardDeviation * stdDev));
+      lowerBand.push(mean - (standardDeviation * stdDev));
+    }
+    
+    return { upperBand, middleBand, lowerBand };
+  }
+
+  /**
+   * Identify support and resistance levels
+   */
+  static identifySupportResistance(data: ChartDataPoint[], windowSize: number = 5): {
+    support: number[];
+    resistance: number[];
+  } {
+    const support: number[] = [];
+    const resistance: number[] = [];
+    
+    for (let i = windowSize; i < data.length - windowSize; i++) {
+      const currentLow = data[i].low;
+      const currentHigh = data[i].high;
+      
+      // Check if current low is the lowest in the window (support)
+      let isSupport = true;
+      for (let j = i - windowSize; j <= i + windowSize; j++) {
+        if (j !== i && data[j].low < currentLow) {
+          isSupport = false;
+          break;
+        }
+      }
+      
+      if (isSupport) {
+        support.push(currentLow);
+      }
+      
+      // Check if current high is the highest in the window (resistance)
+      let isResistance = true;
+      for (let j = i - windowSize; j <= i + windowSize; j++) {
+        if (j !== i && data[j].high > currentHigh) {
+          isResistance = false;
+          break;
+        }
+      }
+      
+      if (isResistance) {
+        resistance.push(currentHigh);
+      }
+    }
+    
+    return { support, resistance };
+  }
+
+  /**
+   * Detect chart patterns (simplified implementation)
+   */
+  static detectPatterns(data: ChartDataPoint[]): PatternData[] {
+    const patterns: PatternData[] = [];
+    
+    // This is a simplified implementation
+    // In a real application, you would use more sophisticated algorithms
+    
+    // Head and shoulders pattern detection (simplified)
+    for (let i = 10; i < data.length - 10; i++) {
+      const leftShoulder = data[i - 10].high;
+      const head = data[i].high;
+      const rightShoulder = data[i + 10].high;
+      
+      // Check if head is significantly higher than shoulders
+      if (head > leftShoulder * 1.05 && head > rightShoulder * 1.05) {
+        // Check if shoulders are roughly equal
+        const shoulderRatio = Math.abs(leftShoulder - rightShoulder) / Math.max(leftShoulder, rightShoulder);
+        
+        if (shoulderRatio < 0.1) {
+          patterns.push({
+            patternType: 'head_and_shoulders',
+            confidence: 0.7,
+            startPoint: i - 10,
+            endPoint: i + 10,
+            description: 'A head and shoulders pattern, which typically signals a trend reversal from bullish to bearish.'
+          });
+        }
+      }
+    }
+    
+    // Double top/bottom pattern detection (simplified)
+    for (let i = 5; i < data.length - 5; i++) {
+      const firstTop = data[i - 5].high;
+      const secondTop = data[i + 5].high;
+      const trough = data[i].low;
+      
+      // Check if tops are roughly equal
+      const topRatio = Math.abs(firstTop - secondTop) / Math.max(firstTop, secondTop);
+      
+      if (topRatio < 0.05 && trough < firstTop * 0.95) {
+        patterns.push({
+          patternType: 'double_top',
+          confidence: 0.6,
+          startPoint: i - 5,
+          endPoint: i + 5,
+          description: 'A double top pattern, which typically signals a trend reversal from bullish to bearish.'
+        });
+      }
+      
+      const firstBottom = data[i - 5].low;
+      const secondBottom = data[i + 5].low;
+      const peak = data[i].high;
+      
+      // Check if bottoms are roughly equal
+      const bottomRatio = Math.abs(firstBottom - secondBottom) / Math.max(firstBottom, secondBottom);
+      
+      if (bottomRatio < 0.05 && peak > firstBottom * 1.05) {
+        patterns.push({
+          patternType: 'double_bottom',
+          confidence: 0.6,
+          startPoint: i - 5,
+          endPoint: i + 5,
+          description: 'A double bottom pattern, which typically signals a trend reversal from bearish to bullish.'
+        });
+      }
+    }
+    
+    return patterns;
   }
 
   /**
@@ -212,8 +467,6 @@ export class MarketUtils {
 
   /**
    * Debounce function for search
-   *
-   * Note: kept simple to avoid cross-environment timer type mismatches (NodeJS vs DOM).
    */
   static debounce<T extends (...args: unknown[]) => unknown>(
     func: T,
@@ -223,16 +476,10 @@ export class MarketUtils {
 
     return (...args: Parameters<T>): void => {
       if (timeoutId !== undefined) {
-        // cast to unknown -> any to satisfy both DOM and Node typings at compile time
         clearTimeout(timeoutId as unknown as number);
       }
 
-      // store timer id (cast) so we can clear it later
       timeoutId = setTimeout(() => {
-        // call the original function with captured args
-        // using spread keeps correct arguments and types
-        // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-        // @ts-ignore-next-line
         func(...args);
       }, wait) as unknown as ReturnType<typeof setTimeout>;
     };
@@ -264,6 +511,193 @@ export class MarketUtils {
       volatility,
       sharpeRatio: volatility > 0 ? avgDailyReturn / volatility : 0
     };
+  }
+
+  /**
+   * Calculate portfolio beta
+   */
+  static calculatePortfolioBeta(portfolioReturns: number[], marketReturns: number[]): number {
+    if (portfolioReturns.length !== marketReturns.length || portfolioReturns.length === 0) {
+      return 1; // Default to market beta if calculation is not possible
+    }
+
+    // Calculate covariance between portfolio and market
+    const portfolioMean = portfolioReturns.reduce((sum, ret) => sum + ret, 0) / portfolioReturns.length;
+    const marketMean = marketReturns.reduce((sum, ret) => sum + ret, 0) / marketReturns.length;
+
+    let covariance = 0;
+    for (let i = 0; i < portfolioReturns.length; i++) {
+      covariance += (portfolioReturns[i] - portfolioMean) * (marketReturns[i] - marketMean);
+    }
+    covariance /= portfolioReturns.length;
+
+    // Calculate market variance
+    let marketVariance = 0;
+    for (let i = 0; i < marketReturns.length; i++) {
+      marketVariance += Math.pow(marketReturns[i] - marketMean, 2);
+    }
+    marketVariance /= marketReturns.length;
+
+    return marketVariance !== 0 ? covariance / marketVariance : 1;
+  }
+
+  /**
+   * Calculate portfolio alpha
+   */
+  static calculatePortfolioAlpha(
+    portfolioReturns: number[], 
+    marketReturns: number[], 
+    riskFreeRate: number = 0.02
+  ): number {
+    if (portfolioReturns.length !== marketReturns.length || portfolioReturns.length === 0) {
+      return 0; // Default to zero alpha if calculation is not possible
+    }
+
+    const portfolioMean = portfolioReturns.reduce((sum, ret) => sum + ret, 0) / portfolioReturns.length;
+    const marketMean = marketReturns.reduce((sum, ret) => sum + ret, 0) / marketReturns.length;
+    const beta = this.calculatePortfolioBeta(portfolioReturns, marketReturns);
+
+    // Alpha = Portfolio Return - Risk Free Rate - Beta * (Market Return - Risk Free Rate)
+    return portfolioMean - riskFreeRate - beta * (marketMean - riskFreeRate);
+  }
+
+  /**
+   * Calculate Value at Risk (VaR)
+   */
+  static calculateVaR(returns: number[], confidenceLevel: number = 0.95): number {
+    if (returns.length === 0) return 0;
+
+    // Sort returns in ascending order
+    const sortedReturns = [...returns].sort((a, b) => a - b);
+    
+    // Calculate the index for the confidence level
+    const index = Math.floor((1 - confidenceLevel) * sortedReturns.length);
+    
+    // Return the VaR as a positive number
+    return Math.abs(sortedReturns[index]);
+  }
+
+  /**
+   * Calculate Maximum Drawdown
+   */
+  static calculateMaxDrawdown(prices: number[]): number {
+    if (prices.length === 0) return 0;
+
+    let maxDrawdown = 0;
+    let peak = prices[0];
+
+    for (let i = 1; i < prices.length; i++) {
+      // Update peak if we find a new high
+      if (prices[i] > peak) {
+        peak = prices[i];
+      } else {
+        // Calculate drawdown
+        const drawdown = (peak - prices[i]) / peak;
+        if (drawdown > maxDrawdown) {
+          maxDrawdown = drawdown;
+        }
+      }
+    }
+
+    return maxDrawdown;
+  }
+
+  /**
+   * Generate technical indicators for chart data
+   */
+  static generateTechnicalIndicators(data: ChartDataPoint[]): TechnicalIndicator[] {
+    const closes = data.map(d => d.close);
+    const indicators: TechnicalIndicator[] = [];
+
+    // SMA indicators
+    const sma20 = this.calculateSMA(closes, 20);
+    const sma50 = this.calculateSMA(closes, 50);
+    const sma200 = this.calculateSMA(closes, 200);
+
+    indicators.push({
+      name: 'SMA 20',
+      values: new Array(closes.length - sma20.length).fill(null).concat(sma20),
+      signals: []
+    });
+
+    indicators.push({
+      name: 'SMA 50',
+      values: new Array(closes.length - sma50.length).fill(null).concat(sma50),
+      signals: []
+    });
+
+    indicators.push({
+      name: 'SMA 200',
+      values: new Array(closes.length - sma200.length).fill(null).concat(sma200),
+      signals: []
+    });
+
+    // RSI indicator
+    const rsi = this.calculateRSI(closes);
+    const rsiSignals: string[] = new Array(closes.length).fill('');
+    
+    // Generate RSI signals
+    for (let i = 0; i < rsi.length; i++) {
+      if (rsi[i] > 70) {
+        rsiSignals[i + (closes.length - rsi.length)] = 'overbought';
+      } else if (rsi[i] < 30) {
+        rsiSignals[i + (closes.length - rsi.length)] = 'oversold';
+      }
+    }
+
+    indicators.push({
+      name: 'RSI',
+      values: new Array(closes.length - rsi.length).fill(null).concat(rsi),
+      signals: rsiSignals
+    });
+
+    // MACD indicator
+    const { macd, signal, histogram } = this.calculateMACD(closes);
+    const macdSignals: string[] = new Array(closes.length).fill('');
+    
+    // Generate MACD signals
+    for (let i = 1; i < histogram.length; i++) {
+      const currentIndex = i + (closes.length - macd.length);
+      if (histogram[i - 1] < 0 && histogram[i] >= 0) {
+        macdSignals[currentIndex] = 'bullish_crossover';
+      } else if (histogram[i - 1] > 0 && histogram[i] <= 0) {
+        macdSignals[currentIndex] = 'bearish_crossover';
+      }
+    }
+
+    indicators.push({
+      name: 'MACD',
+      values: new Array(closes.length - macd.length).fill(null).concat(macd),
+      signals: macdSignals
+    });
+
+    // Bollinger Bands
+    const { upperBand, lowerBand } = this.calculateBollingerBands(closes);
+    const bbSignals: string[] = new Array(closes.length).fill('');
+    
+    // Generate Bollinger Band signals
+    for (let i = 0; i < upperBand.length; i++) {
+      const currentIndex = i + (closes.length - upperBand.length);
+      if (closes[currentIndex] > upperBand[i]) {
+        bbSignals[currentIndex] = 'above_upper_band';
+      } else if (closes[currentIndex] < lowerBand[i]) {
+        bbSignals[currentIndex] = 'below_lower_band';
+      }
+    }
+
+    indicators.push({
+      name: 'BB Upper',
+      values: new Array(closes.length - upperBand.length).fill(null).concat(upperBand),
+      signals: bbSignals
+    });
+
+    indicators.push({
+      name: 'BB Lower',
+      values: new Array(closes.length - lowerBand.length).fill(null).concat(lowerBand),
+      signals: []
+    });
+
+    return indicators;
   }
 }
 

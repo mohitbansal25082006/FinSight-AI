@@ -1,3 +1,4 @@
+// F:\finsight-ai\src\app\dashboard\page.tsx
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
@@ -12,10 +13,15 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell } from 'recharts';
+import { Textarea } from '@/components/ui/textarea';
+import { Progress } from '@/components/ui/progress';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area, PieChart, Pie, Cell, BarChart, Bar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar, ComposedChart, ReferenceLine } from 'recharts';
 import { 
   Search, Plus, Trash2, TrendingUp, TrendingDown, DollarSign, Activity, BarChart3, RefreshCw,
-  Brain, Newspaper, PieChart as PieChartIcon, Loader2, RotateCcw
+  Brain, Newspaper, PieChart as PieChartIcon, Loader2, RotateCcw, MessageCircle, AlertTriangle,
+  Settings, Zap, Target, Shield, ChevronRight, Info, ArrowUpRight, ArrowDownRight, Minimize,
+  Maximize2, Download, Upload, Eye, EyeOff, CheckCircle, XCircle, Clock, Calendar, Filter
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Inter } from 'next/font/google';
@@ -115,6 +121,66 @@ interface PortfolioPerformance {
   value: number;
 }
 
+interface StockRecommendation {
+  symbol: string;
+  action: 'buy' | 'sell' | 'hold';
+  confidence: number;
+  reason: string;
+  priceTarget?: number;
+  timeHorizon: string;
+}
+
+interface SocialMediaSentiment {
+  overallSentiment: number;
+  platformSentiments: Record<string, number>;
+  keyTopics: string[];
+  mentions: number;
+}
+
+interface PatternRecognitionResult {
+  patternType: string;
+  confidence: number;
+  description: string;
+  implications: string;
+}
+
+interface PricePredictionResult {
+  prediction: number;
+  confidence: number;
+  timeframe: string;
+  factors: string[];
+}
+
+interface FraudAlertResult {
+  alertType: string;
+  confidence: number;
+  description: string;
+  indicators: string[];
+}
+
+interface TradingStrategy {
+  name: string;
+  description: string;
+  parameters: Record<string, any>;
+  performance?: Record<string, any>;
+}
+
+interface MarketTrendForecast {
+  trend: string;
+  confidence: number;
+  keyIndicators: string[];
+  catalysts: string[];
+  sectorExpectations: Record<string, string>;
+  riskFactors: string[];
+}
+
+interface ChatbotMessage {
+  id: string;
+  query: string;
+  response: string;
+  timestamp: string;
+}
+
 export default function DashboardPage() {
   const { data: session } = useSession();
   const [watchlist, setWatchlist] = useState<WatchlistItem[]>([]);
@@ -122,6 +188,16 @@ export default function DashboardPage() {
   const [portfolio, setPortfolio] = useState<PortfolioItem[]>([]);
   const [news, setNews] = useState<NewsItem[]>([]);
   const [aiInsights, setAiInsights] = useState<AiInsight[]>([]);
+  const [stockRecommendations, setStockRecommendations] = useState<StockRecommendation[]>([]);
+  const [socialMediaSentiment, setSocialMediaSentiment] = useState<SocialMediaSentiment | null>(null);
+  const [patternRecognition, setPatternRecognition] = useState<PatternRecognitionResult[]>([]);
+  const [pricePrediction, setPricePrediction] = useState<PricePredictionResult | null>(null);
+  const [fraudAlerts, setFraudAlerts] = useState<FraudAlertResult[]>([]);
+  const [tradingStrategies, setTradingStrategies] = useState<TradingStrategy[]>([]);
+  const [portfolioOptimization, setPortfolioOptimization] = useState<Record<string, any> | null>(null);
+  const [marketTrendForecast, setMarketTrendForecast] = useState<MarketTrendForecast | null>(null);
+  const [chatbotMessages, setChatbotMessages] = useState<ChatbotMessage[]>([]);
+  const [chatbotQuery, setChatbotQuery] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -137,19 +213,27 @@ export default function DashboardPage() {
     type: 'stock'
   });
   const [isAddingToPortfolio, setIsAddingToPortfolio] = useState(false);
-  const [portfolioAllocation, setPortfolioAllocation] = useState<PortfolioAllocation[]>([]);
-  const [portfolioPerformance, setPortfolioPerformance] = useState<PortfolioPerformance[]>([]);
   const [isPortfolioDialogOpen, setIsPortfolioDialogOpen] = useState(false);
   const [activeStock, setActiveStock] = useState<StockData | null>(null);
   const [loadingAiInsightSymbol, setLoadingAiInsightSymbol] = useState<string | null>(null);
   const [loadingNewsSymbol, setLoadingNewsSymbol] = useState<string | null>(null);
   const [currentInsightSymbol, setCurrentInsightSymbol] = useState<string | null>(null);
   const [currentNewsSymbol, setCurrentNewsSymbol] = useState<string | null>(null);
+  const [chartIndicators, setChartIndicators] = useState<string[]>(['SMA 20', 'SMA 50']);
+  const [chartTimeframe, setChartTimeframe] = useState('1M');
+  const [chartType, setChartType] = useState('line');
+  const [showAdvancedChart, setShowAdvancedChart] = useState(false);
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
+  const [isProcessingChatbotQuery, setIsProcessingChatbotQuery] = useState(false);
+  const [portfolioAllocation, setPortfolioAllocation] = useState<PortfolioAllocation[]>([]);
+  const [portfolioPerformance, setPortfolioPerformance] = useState<PortfolioPerformance[]>([]);
 
   // Fetch initial data
   useEffect(() => {
     fetchWatchlist();
     fetchPortfolio();
+    fetchStockRecommendations();
+    fetchMarketTrendForecast();
   }, []);
 
   // Memoize functions to prevent unnecessary re-renders
@@ -436,7 +520,15 @@ export default function DashboardPage() {
       
       if (insightsResponse.ok) {
         const insightData = await insightsResponse.json();
-        setAiInsights([insightData]);
+        setAiInsights([{
+          id: `ai-${Date.now()}-${symbol}`,
+          symbol: symbol,
+          title: `AI Analysis for ${symbol}`,
+          summary: insightData.summary,
+          sentiment: insightData.sentiment,
+          confidence: insightData.confidence,
+          createdAt: new Date().toISOString()
+        }]);
         toast.success(`AI insights loaded for ${symbol}`);
       } else {
         console.error('Failed to fetch AI insights:', insightsResponse.status);
@@ -467,6 +559,176 @@ export default function DashboardPage() {
       }]);
     } finally {
       setLoadingAiInsightSymbol(null);
+    }
+  };
+
+  const fetchStockRecommendations = async () => {
+    try {
+      const response = await fetch('/api/ai/recommendations');
+      
+      if (response.ok) {
+        const data = await response.json();
+        setStockRecommendations(data);
+      } else {
+        console.error('Failed to fetch stock recommendations');
+      }
+    } catch (error) {
+      console.error('Error fetching stock recommendations:', error);
+    }
+  };
+
+  const fetchSocialMediaSentiment = async (symbol: string) => {
+    try {
+      const response = await fetch(`/api/ai/sentiment?symbol=${symbol}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setSocialMediaSentiment(data);
+        toast.success(`Social media sentiment analyzed for ${symbol}`);
+      } else {
+        console.error('Failed to fetch social media sentiment');
+      }
+    } catch (error) {
+      console.error('Error fetching social media sentiment:', error);
+      toast.error('Failed to analyze social media sentiment');
+    }
+  };
+
+  const fetchPatternRecognition = async (symbol: string) => {
+    try {
+      const response = await fetch(`/api/ai/patterns?symbol=${symbol}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setPatternRecognition(data);
+        toast.success(`Pattern recognition completed for ${symbol}`);
+      } else {
+        console.error('Failed to fetch pattern recognition');
+      }
+    } catch (error) {
+      console.error('Error fetching pattern recognition:', error);
+      toast.error('Failed to recognize patterns');
+    }
+  };
+
+  const fetchPricePrediction = async (symbol: string, timeframe: string = '1w') => {
+    try {
+      const response = await fetch(`/api/ai/prediction?symbol=${symbol}&timeframe=${timeframe}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setPricePrediction(data);
+        toast.success(`Price prediction generated for ${symbol}`);
+      } else {
+        console.error('Failed to fetch price prediction');
+      }
+    } catch (error) {
+      console.error('Error fetching price prediction:', error);
+      toast.error('Failed to predict stock price');
+    }
+  };
+
+  const fetchFraudAlerts = async (symbol: string) => {
+    try {
+      const response = await fetch(`/api/ai/fraud?symbol=${symbol}`);
+      
+      if (response.ok) {
+        const data = await response.json();
+        setFraudAlerts(data);
+        toast.success(`Fraud detection completed for ${symbol}`);
+      } else {
+        console.error('Failed to fetch fraud alerts');
+      }
+    } catch (error) {
+      console.error('Error fetching fraud alerts:', error);
+      toast.error('Failed to detect fraud');
+    }
+  };
+
+  const fetchTradingStrategies = async () => {
+    try {
+      const response = await fetch('/api/ai/strategies');
+      
+      if (response.ok) {
+        const data = await response.json();
+        setTradingStrategies(data);
+        toast.success('Trading strategies generated');
+      } else {
+        console.error('Failed to fetch trading strategies');
+      }
+    } catch (error) {
+      console.error('Error fetching trading strategies:', error);
+      toast.error('Failed to generate trading strategies');
+    }
+  };
+
+  const fetchPortfolioOptimization = async () => {
+    try {
+      const response = await fetch('/api/ai/optimize');
+      
+      if (response.ok) {
+        const data = await response.json();
+        setPortfolioOptimization(data);
+        toast.success('Portfolio optimization completed');
+      } else {
+        console.error('Failed to fetch portfolio optimization');
+      }
+    } catch (error) {
+      console.error('Error fetching portfolio optimization:', error);
+      toast.error('Failed to optimize portfolio');
+    }
+  };
+
+  const fetchMarketTrendForecast = async () => {
+    try {
+      const response = await fetch('/api/ai/forecast');
+      
+      if (response.ok) {
+        const data = await response.json();
+        setMarketTrendForecast(data);
+      } else {
+        console.error('Failed to fetch market trend forecast');
+      }
+    } catch (error) {
+      console.error('Error fetching market trend forecast:', error);
+    }
+  };
+
+  const processChatbotQuery = async () => {
+    if (!chatbotQuery.trim()) {
+      toast.error('Please enter a question');
+      return;
+    }
+    
+    setIsProcessingChatbotQuery(true);
+    
+    try {
+      const response = await fetch('/api/ai/chatbot', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: chatbotQuery })
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        
+        const newMessage: ChatbotMessage = {
+          id: Date.now().toString(),
+          query: chatbotQuery,
+          response: data.response,
+          timestamp: new Date().toISOString()
+        };
+        
+        setChatbotMessages(prev => [...prev, newMessage]);
+        setChatbotQuery('');
+      } else {
+        toast.error('Failed to process your question');
+      }
+    } catch (error) {
+      console.error('Error processing chatbot query:', error);
+      toast.error('Failed to process your question');
+    } finally {
+      setIsProcessingChatbotQuery(false);
     }
   };
 
@@ -632,6 +894,13 @@ export default function DashboardPage() {
     });
   };
 
+  const formatTime = (dateString: string) => {
+    return new Date(dateString).toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
   // Loading skeleton component
   const StockCardSkeleton = () => (
     <Card>
@@ -667,6 +936,54 @@ export default function DashboardPage() {
   // Portfolio allocation chart colors
   const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884D8', '#82CA9D'];
   
+  // Sentiment colors
+  const getSentimentColor = (sentiment: string) => {
+    switch (sentiment) {
+      case 'positive':
+        return 'text-green-600 bg-green-100';
+      case 'negative':
+        return 'text-red-600 bg-red-100';
+      default:
+        return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  // Get action color
+  const getActionColor = (action: string) => {
+    switch (action) {
+      case 'buy':
+        return 'text-green-600 bg-green-100';
+      case 'sell':
+        return 'text-red-600 bg-red-100';
+      default:
+        return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  // Get trend color
+  const getTrendColor = (trend: string) => {
+    switch (trend) {
+      case 'bullish':
+        return 'text-green-600 bg-green-100';
+      case 'bearish':
+        return 'text-red-600 bg-red-100';
+      default:
+        return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  // Get alert type color
+  const getAlertTypeColor = (alertType: string) => {
+    switch (alertType) {
+      case 'pump_and_dump':
+      case 'wash_trading':
+      case 'insider_trading':
+        return 'text-red-600 bg-red-100';
+      default:
+        return 'text-yellow-600 bg-yellow-100';
+    }
+  };
+
   return (
     <div className={`min-h-screen bg-gray-50 p-4 md:p-6 lg:p-8 ${inter.className}`}>
       <div className="max-w-7xl mx-auto space-y-6">
@@ -797,7 +1114,7 @@ export default function DashboardPage() {
         
         {/* Main Dashboard Content */}
         <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-6">
             <TabsTrigger value="watchlist" className="flex items-center gap-2">
               <Activity className="h-4 w-4" />
               Watchlist
@@ -813,6 +1130,14 @@ export default function DashboardPage() {
             <TabsTrigger value="insights" className="flex items-center gap-2">
               <Brain className="h-4 w-4" />
               Insights
+            </TabsTrigger>
+            <TabsTrigger value="ai" className="flex items-center gap-2">
+              <Zap className="h-4 w-4" />
+              AI Features
+            </TabsTrigger>
+            <TabsTrigger value="strategies" className="flex items-center gap-2">
+              <Target className="h-4 w-4" />
+              Strategies
             </TabsTrigger>
           </TabsList>
           
@@ -944,25 +1269,60 @@ export default function DashboardPage() {
             {selectedStock && chartData.length > 0 ? (
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5" />
-                    {selectedStock} Price Chart
-                    {stockData[selectedStock] && (
-                      <div className={`ml-auto flex items-center gap-1 text-sm font-medium px-3 py-1 rounded-full ${
-                        stockData[selectedStock].change >= 0 
-                          ? 'text-green-700 bg-green-100' 
-                          : 'text-red-700 bg-red-100'
-                      }`}>
-                        {stockData[selectedStock].change >= 0 ? (
-                          <TrendingUp className="h-4 w-4" />
-                        ) : (
-                          <TrendingDown className="h-4 w-4" />
-                        )}
-                        {formatCurrency(stockData[selectedStock].price)} 
-                        ({formatPercentage(stockData[selectedStock].changePercent)})
-                      </div>
-                    )}
-                  </CardTitle>
+                  <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+                    <CardTitle className="flex items-center gap-2">
+                      <BarChart3 className="h-5 w-5" />
+                      {selectedStock} Price Chart
+                      {stockData[selectedStock] && (
+                        <div className={`ml-auto flex items-center gap-1 text-sm font-medium px-3 py-1 rounded-full ${
+                          stockData[selectedStock].change >= 0 
+                            ? 'text-green-700 bg-green-100' 
+                            : 'text-red-700 bg-red-100'
+                        }`}>
+                          {stockData[selectedStock].change >= 0 ? (
+                            <TrendingUp className="h-4 w-4" />
+                          ) : (
+                            <TrendingDown className="h-4 w-4" />
+                          )}
+                          {formatCurrency(stockData[selectedStock].price)} 
+                          ({formatPercentage(stockData[selectedStock].changePercent)})
+                        </div>
+                      )}
+                    </CardTitle>
+                    <div className="flex items-center gap-2 mt-2 md:mt-0">
+                      <Select value={chartTimeframe} onValueChange={setChartTimeframe}>
+                        <SelectTrigger className="w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1D">1D</SelectItem>
+                          <SelectItem value="1W">1W</SelectItem>
+                          <SelectItem value="1M">1M</SelectItem>
+                          <SelectItem value="3M">3M</SelectItem>
+                          <SelectItem value="6M">6M</SelectItem>
+                          <SelectItem value="1Y">1Y</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Select value={chartType} onValueChange={setChartType}>
+                        <SelectTrigger className="w-24">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="line">Line</SelectItem>
+                          <SelectItem value="area">Area</SelectItem>
+                          <SelectItem value="candlestick">Candlestick</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowAdvancedChart(!showAdvancedChart)}
+                      >
+                        {showAdvancedChart ? <Minimize className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+                        {showAdvancedChart ? 'Simple' : 'Advanced'}
+                      </Button>
+                    </div>
+                  </div>
                   <CardDescription>
                     Historical price data for the last 30 trading days
                   </CardDescription>
@@ -970,70 +1330,188 @@ export default function DashboardPage() {
                 <CardContent>
                   <div className="h-96 w-full">
                     <ResponsiveContainer width="100%" height="100%">
-                      <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                        <defs>
-                          <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                        <XAxis 
-                          dataKey="date" 
-                          tick={{ fontSize: 12 }}
-                          tickFormatter={(value) => {
-                            const date = new Date(value);
-                            return `${date.getMonth() + 1}/${date.getDate()}`;
-                          }}
-                        />
-                        <YAxis 
-                          tick={{ fontSize: 12 }}
-                          tickFormatter={(value) => `$${value.toFixed(2)}`}
-                        />
-                        <Tooltip
-                          labelFormatter={(value) => new Date(value).toLocaleDateString('en-US', {
-                            weekday: 'short',
-                            year: 'numeric',
-                            month: 'short',
-                            day: 'numeric'
-                          })}
-                          formatter={(value: number, name) => [
-                            formatCurrency(value),
-                            name === 'close' ? 'Close Price' : 
-                            name === 'high' ? 'High' :
-                            name === 'low' ? 'Low' : 'Open'
-                          ]}
-                          contentStyle={{
-                            backgroundColor: '#fff',
-                            border: '1px solid #e5e7eb',
-                            borderRadius: '8px',
-                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
-                          }}
-                        />
-                        <Area
-                          type="monotone"
-                          dataKey="close"
-                          stroke="#3b82f6"
-                          strokeWidth={2}
-                          fill="url(#colorPrice)"
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="high"
-                          stroke="#10b981"
-                          strokeWidth={1}
-                          strokeDasharray="2 2"
-                          dot={false}
-                        />
-                        <Line
-                          type="monotone"
-                          dataKey="low"
-                          stroke="#ef4444"
-                          strokeWidth={1}
-                          strokeDasharray="2 2"
-                          dot={false}
-                        />
-                      </AreaChart>
+                      {chartType === 'line' ? (
+                        <LineChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                          <XAxis 
+                            dataKey="date" 
+                            tick={{ fontSize: 12 }}
+                            tickFormatter={(value) => {
+                              const date = new Date(value);
+                              return `${date.getMonth() + 1}/${date.getDate()}`;
+                            }}
+                          />
+                          <YAxis 
+                            tick={{ fontSize: 12 }}
+                            tickFormatter={(value) => `$${value.toFixed(2)}`}
+                          />
+                          <Tooltip
+                            labelFormatter={(value) => new Date(value).toLocaleDateString('en-US', {
+                              weekday: 'short',
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                            formatter={(value: number, name) => [
+                              formatCurrency(value),
+                              name === 'close' ? 'Close Price' : 
+                              name === 'high' ? 'High' :
+                              name === 'low' ? 'Low' : 'Open'
+                            ]}
+                            contentStyle={{
+                              backgroundColor: '#fff',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '8px',
+                              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                            }}
+                          />
+                          <Line
+                            type="monotone"
+                            dataKey="close"
+                            stroke="#3b82f6"
+                            strokeWidth={2}
+                            dot={false}
+                          />
+                          {showAdvancedChart && (
+                            <>
+                              <Line
+                                type="monotone"
+                                dataKey="high"
+                                stroke="#10b981"
+                                strokeWidth={1}
+                                strokeDasharray="2 2"
+                                dot={false}
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="low"
+                                stroke="#ef4444"
+                                strokeWidth={1}
+                                strokeDasharray="2 2"
+                                dot={false}
+                              />
+                            </>
+                          )}
+                        </LineChart>
+                      ) : chartType === 'area' ? (
+                        <AreaChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="colorPrice" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                              <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                          <XAxis 
+                            dataKey="date" 
+                            tick={{ fontSize: 12 }}
+                            tickFormatter={(value) => {
+                              const date = new Date(value);
+                              return `${date.getMonth() + 1}/${date.getDate()}`;
+                            }}
+                          />
+                          <YAxis 
+                            tick={{ fontSize: 12 }}
+                            tickFormatter={(value) => `$${value.toFixed(2)}`}
+                          />
+                          <Tooltip
+                            labelFormatter={(value) => new Date(value).toLocaleDateString('en-US', {
+                              weekday: 'short',
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                            formatter={(value: number, name) => [
+                              formatCurrency(value),
+                              name === 'close' ? 'Close Price' : 
+                              name === 'high' ? 'High' :
+                              name === 'low' ? 'Low' : 'Open'
+                            ]}
+                            contentStyle={{
+                              backgroundColor: '#fff',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '8px',
+                              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                            }}
+                          />
+                          <Area
+                            type="monotone"
+                            dataKey="close"
+                            stroke="#3b82f6"
+                            strokeWidth={2}
+                            fill="url(#colorPrice)"
+                          />
+                          {showAdvancedChart && (
+                            <>
+                              <Line
+                                type="monotone"
+                                dataKey="high"
+                                stroke="#10b981"
+                                strokeWidth={1}
+                                strokeDasharray="2 2"
+                                dot={false}
+                              />
+                              <Line
+                                type="monotone"
+                                dataKey="low"
+                                stroke="#ef4444"
+                                strokeWidth={1}
+                                strokeDasharray="2 2"
+                                dot={false}
+                              />
+                            </>
+                          )}
+                        </AreaChart>
+                      ) : (
+                        // Candlestick chart would require a custom implementation
+                        <ComposedChart data={chartData} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
+                          <XAxis 
+                            dataKey="date" 
+                            tick={{ fontSize: 12 }}
+                            tickFormatter={(value) => {
+                              const date = new Date(value);
+                              return `${date.getMonth() + 1}/${date.getDate()}`;
+                            }}
+                          />
+                          <YAxis 
+                            tick={{ fontSize: 12 }}
+                            tickFormatter={(value) => `$${value.toFixed(2)}`}
+                          />
+                          <Tooltip
+                            labelFormatter={(value) => new Date(value).toLocaleDateString('en-US', {
+                              weekday: 'short',
+                              year: 'numeric',
+                              month: 'short',
+                              day: 'numeric'
+                            })}
+                            contentStyle={{
+                              backgroundColor: '#fff',
+                              border: '1px solid #e5e7eb',
+                              borderRadius: '8px',
+                              boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                            }}
+                          />
+                          <Bar
+                            dataKey="high"
+                            fill="#10b981"
+                            shape={(props: any) => {
+                              const { x, y, width, payload } = props;
+                              const height = y - payload.low * (y / payload.high);
+                              return <rect x={x} y={payload.low * (y / payload.high)} width={width} height={height} fill="#10b981" />;
+                            }}
+                          />
+                          <Bar
+                            dataKey="low"
+                            fill="#ef4444"
+                            shape={(props: any) => {
+                              const { x, y, width, payload } = props;
+                              const height = payload.high * (y / payload.high) - y;
+                              return <rect x={x} y={y} width={width} height={height} fill="#ef4444" />;
+                            }}
+                          />
+                        </ComposedChart>
+                      )}
                     </ResponsiveContainer>
                   </div>
                   
@@ -1068,6 +1546,82 @@ export default function DashboardPage() {
                       </>
                     )}
                   </div>
+                  
+                  {/* Advanced Chart Features */}
+                  {showAdvancedChart && (
+                    <div className="mt-4 pt-4 border-t">
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="text-lg font-semibold">Technical Indicators</h3>
+                        <div className="flex items-center gap-2">
+                          <Select value={chartIndicators.join(',')} onValueChange={(value) => setChartIndicators(value.split(','))}>
+                            <SelectTrigger className="w-48">
+                              <SelectValue placeholder="Select indicators" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="SMA 20">SMA 20</SelectItem>
+                              <SelectItem value="SMA 50">SMA 50</SelectItem>
+                              <SelectItem value="SMA 200">SMA 200</SelectItem>
+                              <SelectItem value="RSI">RSI</SelectItem>
+                              <SelectItem value="MACD">MACD</SelectItem>
+                              <SelectItem value="BB Upper">Bollinger Bands</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              if (selectedStock) {
+                                fetchPatternRecognition(selectedStock);
+                                fetchPricePrediction(selectedStock);
+                              }
+                            }}
+                          >
+                            <Brain className="h-4 w-4 mr-2" />
+                            Analyze
+                          </Button>
+                        </div>
+                      </div>
+                      
+                      {/* Pattern Recognition Results */}
+                      {patternRecognition.length > 0 && (
+                        <div className="mb-4">
+                          <h4 className="text-md font-medium mb-2">Pattern Recognition</h4>
+                          <div className="space-y-2">
+                            {patternRecognition.map((pattern, index) => (
+                              <Alert key={index} className="bg-blue-50 border-blue-200">
+                                <Info className="h-4 w-4 text-blue-600" />
+                                <AlertTitle className="text-blue-800">{pattern.patternType.replace('_', ' ').toUpperCase()}</AlertTitle>
+                                <AlertDescription className="text-blue-700">
+                                  {pattern.description} Confidence: {(pattern.confidence * 100).toFixed(0)}%
+                                </AlertDescription>
+                              </Alert>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Price Prediction Results */}
+                      {pricePrediction && (
+                        <div className="mb-4">
+                          <h4 className="text-md font-medium mb-2">Price Prediction</h4>
+                          <Alert className="bg-purple-50 border-purple-200">
+                            <Target className="h-4 w-4 text-purple-600" />
+                            <AlertTitle className="text-purple-800">
+                              Predicted Price: {formatCurrency(pricePrediction.prediction)} ({pricePrediction.timeframe})
+                            </AlertTitle>
+                            <AlertDescription className="text-purple-700">
+                              Confidence: {(pricePrediction.confidence * 100).toFixed(0)}%
+                              <ul className="mt-2 list-disc list-inside">
+                                {pricePrediction.factors.map((factor, index) => (
+                                  <li key={index}>{factor}</li>
+                                ))}
+                              </ul>
+                            </AlertDescription>
+                          </Alert>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             ) : chartLoading ? (
@@ -1166,82 +1720,93 @@ export default function DashboardPage() {
                   
                   <Separator />
                   
-                  <Dialog open={isPortfolioDialogOpen} onOpenChange={setIsPortfolioDialogOpen}>
-                    <DialogTrigger asChild>
-                      <Button 
-                        className="w-full" 
-                        onClick={openAddToPortfolioDialog}
-                      >
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add to Portfolio
-                      </Button>
-                    </DialogTrigger>
-                    <DialogContent>
-                      <DialogHeader>
-                        <DialogTitle>Add to Portfolio</DialogTitle>
-                        <DialogDescription>
-                          Enter the details of your investment
-                        </DialogDescription>
-                      </DialogHeader>
-                      <div className="space-y-4">
-                        <div>
-                          <Label htmlFor="symbol">Symbol</Label>
-                          <Input
-                            id="symbol"
-                            placeholder="e.g., AAPL"
-                            value={portfolioForm.symbol}
-                            onChange={(e) => setPortfolioForm({...portfolioForm, symbol: e.target.value.toUpperCase()})}
-                          />
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <Label htmlFor="quantity">Quantity</Label>
-                            <Input
-                              id="quantity"
-                              type="number"
-                              placeholder="0"
-                              value={portfolioForm.quantity}
-                              onChange={(e) => setPortfolioForm({...portfolioForm, quantity: e.target.value})}
-                            />
-                          </div>
-                          <div>
-                            <Label htmlFor="buyPrice">Buy Price ($)</Label>
-                            <Input
-                              id="buyPrice"
-                              type="number"
-                              placeholder="0.00"
-                              value={portfolioForm.buyPrice}
-                              onChange={(e) => setPortfolioForm({...portfolioForm, buyPrice: e.target.value})}
-                            />
-                          </div>
-                        </div>
-                        <div>
-                          <Label htmlFor="type">Type</Label>
-                          <Select value={portfolioForm.type} onValueChange={(value) => setPortfolioForm({...portfolioForm, type: value})}>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Select type" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="stock">Stock</SelectItem>
-                              <SelectItem value="crypto">Cryptocurrency</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+                  <div className="space-y-2">
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={fetchPortfolioOptimization}
+                      className="w-full"
+                    >
+                      <Brain className="h-4 w-4 mr-2" />
+                      Optimize Portfolio
+                    </Button>
+                    <Dialog open={isPortfolioDialogOpen} onOpenChange={setIsPortfolioDialogOpen}>
+                      <DialogTrigger asChild>
                         <Button 
-                          onClick={addToPortfolio} 
-                          disabled={isAddingToPortfolio || !portfolioForm.symbol || !portfolioForm.quantity || !portfolioForm.buyPrice}
-                          className="w-full"
+                          className="w-full" 
+                          onClick={openAddToPortfolioDialog}
                         >
-                          {isAddingToPortfolio ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Adding...
-                            </>
-                          ) : 'Add to Portfolio'}
+                          <Plus className="h-4 w-4 mr-2" />
+                          Add to Portfolio
                         </Button>
-                      </div>
-                    </DialogContent>
-                  </Dialog>
+                      </DialogTrigger>
+                      <DialogContent>
+                        <DialogHeader>
+                          <DialogTitle>Add to Portfolio</DialogTitle>
+                          <DialogDescription>
+                            Enter the details of your investment
+                          </DialogDescription>
+                        </DialogHeader>
+                        <div className="space-y-4">
+                          <div>
+                            <Label htmlFor="symbol">Symbol</Label>
+                            <Input
+                              id="symbol"
+                              placeholder="e.g., AAPL"
+                              value={portfolioForm.symbol}
+                              onChange={(e) => setPortfolioForm({...portfolioForm, symbol: e.target.value.toUpperCase()})}
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <Label htmlFor="quantity">Quantity</Label>
+                              <Input
+                                id="quantity"
+                                type="number"
+                                placeholder="0"
+                                value={portfolioForm.quantity}
+                                onChange={(e) => setPortfolioForm({...portfolioForm, quantity: e.target.value})}
+                              />
+                            </div>
+                            <div>
+                              <Label htmlFor="buyPrice">Buy Price ($)</Label>
+                              <Input
+                                id="buyPrice"
+                                type="number"
+                                placeholder="0.00"
+                                value={portfolioForm.buyPrice}
+                                onChange={(e) => setPortfolioForm({...portfolioForm, buyPrice: e.target.value})}
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <Label htmlFor="type">Type</Label>
+                            <Select value={portfolioForm.type} onValueChange={(value) => setPortfolioForm({...portfolioForm, type: value})}>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select type" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="stock">Stock</SelectItem>
+                                <SelectItem value="crypto">Cryptocurrency</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <Button 
+                            onClick={addToPortfolio} 
+                            disabled={isAddingToPortfolio || !portfolioForm.symbol || !portfolioForm.quantity || !portfolioForm.buyPrice}
+                            className="w-full"
+                          >
+                            {isAddingToPortfolio ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Adding...
+                              </>
+                            ) : 'Add to Portfolio'}
+                          </Button>
+                        </div>
+                      </DialogContent>
+                    </Dialog>
+                  </div>
                 </CardContent>
               </Card>
               
@@ -1434,6 +1999,83 @@ export default function DashboardPage() {
                           </CardContent>
                         </Card>
                       </div>
+                      
+                      {/* Portfolio Optimization Results */}
+                      {portfolioOptimization && (
+                        <Card className="mt-4">
+                          <CardHeader>
+                            <CardTitle className="text-lg flex items-center gap-2">
+                              <Brain className="h-5 w-5" />
+                              AI Portfolio Optimization
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent>
+                            <div className="space-y-4">
+                              <div>
+                                <h4 className="font-medium mb-2">Recommendations</h4>
+                                <div className="space-y-2">
+                                  {portfolioOptimization.recommendations && Array.isArray(portfolioOptimization.recommendations) ? (
+                                    portfolioOptimization.recommendations.map((rec: any, index: number) => (
+                                      <div key={index} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                                        <div>
+                                          <span className="font-medium">{rec.symbol}</span>
+                                          <span className={`ml-2 px-2 py-1 rounded text-xs ${getActionColor(rec.action)}`}>
+                                            {rec.action.toUpperCase()}
+                                          </span>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className="text-sm">{rec.currentAllocation}% → {rec.recommendedAllocation}%</div>
+                                          <div className="text-xs text-gray-500">{rec.reason}</div>
+                                        </div>
+                                      </div>
+                                    ))
+                                  ) : (
+                                    <p className="text-gray-500">No recommendations available</p>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div>
+                                  <h4 className="font-medium mb-2">Suggested Additions</h4>
+                                  <div className="flex flex-wrap gap-2">
+                                    {portfolioOptimization.suggestedAdditions && Array.isArray(portfolioOptimization.suggestedAdditions) ? (
+                                      portfolioOptimization.suggestedAdditions.map((symbol: string, index: number) => (
+                                        <Badge key={index} variant="outline">{symbol}</Badge>
+                                      ))
+                                    ) : (
+                                      <p className="text-gray-500">None</p>
+                                    )}
+                                  </div>
+                                </div>
+                                
+                                <div>
+                                  <h4 className="font-medium mb-2">Suggested Removals</h4>
+                                  <div className="flex flex-wrap gap-2">
+                                    {portfolioOptimization.suggestedRemovals && Array.isArray(portfolioOptimization.suggestedRemovals) ? (
+                                      portfolioOptimization.suggestedRemovals.map((symbol: string, index: number) => (
+                                        <Badge key={index} variant="outline" className="text-red-600 border-red-600">{symbol}</Badge>
+                                      ))
+                                    ) : (
+                                      <p className="text-gray-500">None</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                              
+                              <div>
+                                <h4 className="font-medium mb-2">Expected Improvement</h4>
+                                <p className="text-sm text-gray-600">{portfolioOptimization.expectedImprovement}</p>
+                              </div>
+                              
+                              <div>
+                                <h4 className="font-medium mb-2">Rebalancing Frequency</h4>
+                                <p className="text-sm text-gray-600">{portfolioOptimization.rebalancingFrequency}</p>
+                              </div>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      )}
                     </div>
                   )}
                 </CardContent>
@@ -1650,6 +2292,714 @@ export default function DashboardPage() {
                 </CardContent>
               </Card>
             </div>
+          </TabsContent>
+          
+          {/* AI Features Tab */}
+          <TabsContent value="ai" className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Stock Recommendations */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Stock Recommendations
+                  </CardTitle>
+                  <CardDescription>
+                    Personalized stock recommendations based on your portfolio and preferences
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {stockRecommendations.length > 0 ? (
+                    <div className="space-y-4">
+                      {stockRecommendations.map((rec, index) => (
+                        <div key={index} className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-semibold">{rec.symbol}</h3>
+                            <div className="flex items-center gap-2">
+                              <Badge className={getActionColor(rec.action)}>
+                                {rec.action.toUpperCase()}
+                              </Badge>
+                              <span className="text-sm text-gray-500">
+                                {rec.confidence * 100}% confidence
+                              </span>
+                            </div>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-2">{rec.reason}</p>
+                          {rec.priceTarget && (
+                            <div className="flex items-center justify-between text-sm">
+                              <span className="text-gray-500">Price Target:</span>
+                              <span className="font-medium">{formatCurrency(rec.priceTarget)}</span>
+                            </div>
+                          )}
+                          <div className="flex items-center justify-between text-sm">
+                            <span className="text-gray-500">Time Horizon:</span>
+                            <span className="font-medium">{rec.timeHorizon}</span>
+                          </div>
+                        </div>
+                      ))}
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={fetchStockRecommendations}
+                        className="w-full"
+                      >
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Refresh Recommendations
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Target className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        No recommendations available
+                      </h3>
+                      <p className="text-gray-600 mb-4">
+                        We're analyzing your portfolio to generate personalized recommendations
+                      </p>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={fetchStockRecommendations}
+                      >
+                        Generate Recommendations
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              
+              {/* Social Media Sentiment */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageCircle className="h-5 w-5" />
+                    Social Media Sentiment
+                  </CardTitle>
+                  <CardDescription>
+                    Analyze social media sentiment for stocks in your watchlist
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {socialMediaSentiment ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold">Overall Sentiment</h3>
+                        <div className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          socialMediaSentiment.overallSentiment > 0.1 
+                            ? 'text-green-700 bg-green-100' 
+                            : socialMediaSentiment.overallSentiment < -0.1 
+                            ? 'text-red-700 bg-red-100' 
+                            : 'text-gray-700 bg-gray-100'
+                        }`}>
+                          {socialMediaSentiment.overallSentiment > 0.1 
+                            ? 'Positive' 
+                            : socialMediaSentiment.overallSentiment < -0.1 
+                            ? 'Negative' 
+                            : 'Neutral'}
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <h4 className="font-medium">Platform Sentiments</h4>
+                        {Object.entries(socialMediaSentiment.platformSentiments).map(([platform, sentiment]) => (
+                          <div key={platform} className="flex items-center justify-between">
+                            <span className="text-sm capitalize">{platform}</span>
+                            <div className="flex items-center gap-2">
+                              <div className="w-24 bg-gray-200 rounded-full h-2">
+                                <div 
+                                  className={`h-2 rounded-full ${
+                                    sentiment > 0.1 
+                                      ? 'bg-green-500' 
+                                      : sentiment < -0.1 
+                                      ? 'bg-red-500' 
+                                      : 'bg-gray-500'
+                                  }`}
+                                  style={{ width: `${Math.abs(sentiment) * 100}%` }}
+                                ></div>
+                              </div>
+                              <span className="text-sm">{sentiment.toFixed(2)}</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <h4 className="font-medium">Key Topics</h4>
+                        <div className="flex flex-wrap gap-2">
+                          {socialMediaSentiment.keyTopics.map((topic, index) => (
+                            <Badge key={index} variant="outline">{topic}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-500">Total Mentions:</span>
+                        <span className="font-medium">{socialMediaSentiment.mentions.toLocaleString()}</span>
+                      </div>
+                      
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-gray-500">
+                          Select a stock from your watchlist to analyze its social media sentiment
+                        </p>
+                        {watchlist.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {watchlist.slice(0, 3).map((item) => (
+                              <Button
+                                key={item.id}
+                                variant="outline"
+                                size="sm"
+                                onClick={() => fetchSocialMediaSentiment(item.symbol)}
+                              >
+                                Analyze {item.symbol}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <MessageCircle className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        No sentiment data available
+                      </h3>
+                      <p className="text-gray-600 mb-4">
+                        Select a stock from your watchlist to analyze its social media sentiment
+                      </p>
+                      {watchlist.length > 0 && (
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {watchlist.slice(0, 3).map((item) => (
+                            <Button
+                              key={item.id}
+                              variant="outline"
+                              size="sm"
+                              onClick={() => fetchSocialMediaSentiment(item.symbol)}
+                            >
+                              Analyze {item.symbol}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              
+              {/* Pattern Recognition */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <BarChart3 className="h-5 w-5" />
+                    Pattern Recognition
+                  </CardTitle>
+                  <CardDescription>
+                    Identify technical patterns in stock price charts
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {patternRecognition.length > 0 ? (
+                    <div className="space-y-4">
+                      {patternRecognition.map((pattern, index) => (
+                        <div key={index} className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-semibold">{pattern.patternType.replace('_', ' ').toUpperCase()}</h3>
+                            <span className="text-sm text-gray-500">
+                              {(pattern.confidence * 100).toFixed(0)}% confidence
+                            </span>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-2">{pattern.description}</p>
+                          <p className="text-sm text-gray-500">{pattern.implications}</p>
+                        </div>
+                      ))}
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-gray-500">
+                          Select a stock from your watchlist to recognize patterns in its chart
+                        </p>
+                        {watchlist.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {watchlist.slice(0, 3).map((item) => (
+                              <Button
+                                key={item.id}
+                                variant="outline"
+                                size="sm"
+                                onClick={() => fetchPatternRecognition(item.symbol)}
+                              >
+                                Analyze {item.symbol}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <BarChart3 className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        No patterns detected
+                      </h3>
+                      <p className="text-gray-600 mb-4">
+                        Select a stock from your watchlist to recognize patterns in its chart
+                      </p>
+                      {watchlist.length > 0 && (
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {watchlist.slice(0, 3).map((item) => (
+                            <Button
+                              key={item.id}
+                              variant="outline"
+                              size="sm"
+                              onClick={() => fetchPatternRecognition(item.symbol)}
+                            >
+                              Analyze {item.symbol}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              
+              {/* Price Prediction */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    Price Prediction
+                  </CardTitle>
+                  <CardDescription>
+                    AI-powered stock price predictions using machine learning models
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {pricePrediction ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold">Predicted Price</h3>
+                        <span className="text-sm text-gray-500">
+                          {pricePrediction.timeframe}
+                        </span>
+                      </div>
+                      
+                      <div className="text-center py-4">
+                        <div className="text-3xl font-bold text-blue-600">
+                          {formatCurrency(pricePrediction.prediction)}
+                        </div>
+                        <div className="text-sm text-gray-500 mt-1">
+                          {(pricePrediction.confidence * 100).toFixed(0)}% confidence
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <h4 className="font-medium">Key Factors</h4>
+                        <ul className="space-y-1">
+                          {pricePrediction.factors.map((factor, index) => (
+                            <li key={index} className="text-sm text-gray-600 flex items-start">
+                              <span className="text-blue-500 mr-2">•</span>
+                              {factor}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-gray-500">
+                          Select a stock from your watchlist to predict its price
+                        </p>
+                        {watchlist.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {watchlist.slice(0, 3).map((item) => (
+                              <Button
+                                key={item.id}
+                                variant="outline"
+                                size="sm"
+                                onClick={() => fetchPricePrediction(item.symbol)}
+                              >
+                                Predict {item.symbol}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <TrendingUp className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        No predictions available
+                      </h3>
+                      <p className="text-gray-600 mb-4">
+                        Select a stock from your watchlist to predict its price
+                      </p>
+                      {watchlist.length > 0 && (
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {watchlist.slice(0, 3).map((item) => (
+                            <Button
+                              key={item.id}
+                              variant="outline"
+                              size="sm"
+                              onClick={() => fetchPricePrediction(item.symbol)}
+                            >
+                              Predict {item.symbol}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              
+              {/* Fraud Detection */}
+              <Card className="md:col-span-2">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5" />
+                    Fraud Detection
+                  </CardTitle>
+                  <CardDescription>
+                    Detect potential fraudulent activities in trading patterns
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {fraudAlerts.length > 0 ? (
+                    <div className="space-y-4">
+                      {fraudAlerts.map((alert, index) => (
+                        <Alert key={index} className={getAlertTypeColor(alert.alertType)}>
+                          <AlertTriangle className="h-4 w-4" />
+                          <AlertTitle>{alert.alertType.replace('_', ' ').toUpperCase()}</AlertTitle>
+                          <AlertDescription>
+                            <p>{alert.description}</p>
+                            <p className="mt-2">Confidence: {(alert.confidence * 100).toFixed(0)}%</p>
+                            {alert.indicators.length > 0 && (
+                              <div className="mt-2">
+                                <p className="font-medium">Indicators:</p>
+                                <ul className="list-disc list-inside">
+                                  {alert.indicators.map((indicator, i) => (
+                                    <li key={i} className="text-sm">{indicator}</li>
+                                  ))}
+                                </ul>
+                              </div>
+                            )}
+                          </AlertDescription>
+                        </Alert>
+                      ))}
+                      <div className="pt-2 border-t">
+                        <p className="text-xs text-gray-500">
+                          Select a stock from your watchlist to detect potential fraud
+                        </p>
+                        {watchlist.length > 0 && (
+                          <div className="flex flex-wrap gap-2 mt-2">
+                            {watchlist.slice(0, 3).map((item) => (
+                              <Button
+                                key={item.id}
+                                variant="outline"
+                                size="sm"
+                                onClick={() => fetchFraudAlerts(item.symbol)}
+                              >
+                                Analyze {item.symbol}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Shield className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        No fraud alerts detected
+                      </h3>
+                      <p className="text-gray-600 mb-4">
+                        Select a stock from your watchlist to detect potential fraud
+                      </p>
+                      {watchlist.length > 0 && (
+                        <div className="flex flex-wrap gap-2 justify-center">
+                          {watchlist.slice(0, 3).map((item) => (
+                            <Button
+                              key={item.id}
+                              variant="outline"
+                              size="sm"
+                              onClick={() => fetchFraudAlerts(item.symbol)}
+                            >
+                              Analyze {item.symbol}
+                            </Button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+          
+          {/* Trading Strategies Tab */}
+          <TabsContent value="strategies" className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              {/* Trading Strategies */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Target className="h-5 w-5" />
+                    Automated Trading Strategies
+                  </CardTitle>
+                  <CardDescription>
+                    AI-generated trading strategies based on your risk profile
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {tradingStrategies.length > 0 ? (
+                    <div className="space-y-4">
+                      {tradingStrategies.map((strategy, index) => (
+                        <div key={index} className="border rounded-lg p-4">
+                          <div className="flex items-center justify-between mb-2">
+                            <h3 className="font-semibold">{strategy.name}</h3>
+                            <Button size="sm" variant="outline">
+                              {strategy.performance ? 'Active' : 'Activate'}
+                            </Button>
+                          </div>
+                          <p className="text-sm text-gray-600 mb-3">{strategy.description}</p>
+                          
+                          {strategy.parameters && (
+                            <div className="space-y-2 mb-3">
+                              <h4 className="font-medium text-sm">Parameters</h4>
+                              <div className="bg-gray-50 p-2 rounded text-xs">
+                                {Object.entries(strategy.parameters).map(([key, value]) => (
+                                  <div key={key} className="flex justify-between">
+                                    <span className="font-medium">{key}:</span>
+                                    <span>{typeof value === 'string' ? value : JSON.stringify(value)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                          
+                          {strategy.performance && (
+                            <div className="space-y-2">
+                              <h4 className="font-medium text-sm">Performance</h4>
+                              <div className="bg-gray-50 p-2 rounded text-xs">
+                                {Object.entries(strategy.performance).map(([key, value]) => (
+                                  <div key={key} className="flex justify-between">
+                                    <span className="font-medium">{key}:</span>
+                                    <span>{typeof value === 'string' ? value : JSON.stringify(value)}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={fetchTradingStrategies}
+                        className="w-full"
+                      >
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Refresh Strategies
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Target className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        No strategies available
+                      </h3>
+                      <p className="text-gray-600 mb-4">
+                        We're generating personalized trading strategies based on your risk profile
+                      </p>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={fetchTradingStrategies}
+                      >
+                        Generate Strategies
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+              
+              {/* Market Trend Forecast */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="h-5 w-5" />
+                    Market Trend Forecast
+                  </CardTitle>
+                  <CardDescription>
+                    AI-powered market trend analysis and predictions
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {marketTrendForecast ? (
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-lg font-semibold">Overall Trend</h3>
+                        <Badge className={getTrendColor(marketTrendForecast.trend)}>
+                          {marketTrendForecast.trend.toUpperCase()}
+                        </Badge>
+                      </div>
+                      
+                      <div className="text-center py-2">
+                        <div className="text-sm text-gray-500">
+                          {(marketTrendForecast.confidence * 100).toFixed(0)}% confidence
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <h4 className="font-medium">Key Indicators</h4>
+                        <ul className="space-y-1">
+                          {marketTrendForecast.keyIndicators.map((indicator, index) => (
+                            <li key={index} className="text-sm text-gray-600 flex items-start">
+                              <span className="text-blue-500 mr-2">•</span>
+                              {indicator}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <h4 className="font-medium">Potential Catalysts</h4>
+                        <ul className="space-y-1">
+                          {marketTrendForecast.catalysts.map((catalyst, index) => (
+                            <li key={index} className="text-sm text-gray-600 flex items-start">
+                              <span className="text-blue-500 mr-2">•</span>
+                              {catalyst}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <h4 className="font-medium">Sector Expectations</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                          {Object.entries(marketTrendForecast.sectorExpectations).map(([sector, expectation]) => (
+                            <div key={sector} className="flex items-center justify-between text-sm">
+                              <span className="capitalize">{sector}:</span>
+                              <Badge variant="outline" className={getTrendColor(expectation)}>
+                                {expectation}
+                              </Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <h4 className="font-medium">Risk Factors</h4>
+                        <ul className="space-y-1">
+                          {marketTrendForecast.riskFactors.map((risk, index) => (
+                            <li key={index} className="text-sm text-gray-600 flex items-start">
+                              <span className="text-red-500 mr-2">•</span>
+                              {risk}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                      
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={fetchMarketTrendForecast}
+                        className="w-full"
+                      >
+                        <RotateCcw className="h-4 w-4 mr-2" />
+                        Refresh Forecast
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <TrendingUp className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                      <h3 className="text-lg font-semibold text-gray-900 mb-2">
+                        No forecast available
+                      </h3>
+                      <p className="text-gray-600 mb-4">
+                        We're analyzing market data to generate trend forecasts
+                      </p>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={fetchMarketTrendForecast}
+                      >
+                        Generate Forecast
+                      </Button>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+            
+            {/* Financial Chatbot */}
+            <Card className="mt-4">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <MessageCircle className="h-5 w-5" />
+                  Financial Assistant Chatbot
+                </CardTitle>
+                <CardDescription>
+                  Ask questions about your portfolio, stocks, or financial markets
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  <div className="h-64 overflow-y-auto border rounded-lg p-4 bg-gray-50">
+                    {chatbotMessages.length === 0 ? (
+                      <div className="text-center text-gray-500 py-8">
+                        <MessageCircle className="h-8 w-8 mx-auto mb-2" />
+                        <p>Ask me anything about your portfolio or the markets</p>
+                      </div>
+                    ) : (
+                      <div className="space-y-4">
+                        {chatbotMessages.map((message) => (
+                          <div key={message.id} className="space-y-2">
+                            <div className="flex justify-end">
+                              <div className="max-w-xs bg-blue-500 text-white rounded-lg p-3">
+                                <p className="text-sm">{message.query}</p>
+                                <p className="text-xs opacity-75 mt-1 text-right">
+                                  {formatTime(message.timestamp)}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex justify-start">
+                              <div className="max-w-xs bg-gray-200 text-gray-800 rounded-lg p-3">
+                                <p className="text-sm">{message.response}</p>
+                                <p className="text-xs opacity-75 mt-1">
+                                  {formatTime(message.timestamp)}
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <div className="flex gap-2">
+                    <Textarea
+                      placeholder="Ask a question about your portfolio or the markets..."
+                      value={chatbotQuery}
+                      onChange={(e) => setChatbotQuery(e.target.value)}
+                      className="flex-1"
+                      rows={2}
+                    />
+                    <Button 
+                      onClick={processChatbotQuery}
+                      disabled={isProcessingChatbotQuery || !chatbotQuery.trim()}
+                    >
+                      {isProcessingChatbotQuery ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <MessageCircle className="h-4 w-4" />
+                      )}
+                    </Button>
+                  </div>
+                  
+                  <div className="text-xs text-gray-500">
+                    This AI assistant provides general financial information and is not a substitute for professional financial advice.
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
         </Tabs>
         

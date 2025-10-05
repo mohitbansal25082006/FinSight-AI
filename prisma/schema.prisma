@@ -1,3 +1,4 @@
+// F:\finsight-ai\prisma\schema.prisma
 // This is your Prisma schema file,
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
@@ -49,6 +50,8 @@ model User {
   aiInsights    AiInsight[]
   notifications Notification[]
   preferences   UserPreferences?
+  tradingStrategies TradingStrategy[]
+  chatbotQueries ChatbotQuery[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -94,7 +97,15 @@ model AiInsight {
   imageUrl      String?
   category      String   @default("general") // earnings, news, analysis
   isRead        Boolean  @default(false)
+  type          String   @default("comprehensive") // technical, fundamental, sentiment, comprehensive
+  timeframe     String   @default("1m") // 1d, 1w, 1m, 3m, 6m, 1y
+  keyPoints     Json?    // Array of key points
+  prediction    String?  @db.Text
+  riskFactors   Json?    // Array of risk factors
+  opportunities  Json?    // Array of opportunities
+  technicalIndicators Json? // Object with technical indicators
   createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -107,6 +118,7 @@ model Notification {
   isRead    Boolean  @default(false)
   actionUrl String?
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -120,6 +132,10 @@ model UserPreferences {
   timezone              String  @default("UTC")
   portfolioUpdateFreq   String  @default("daily") // hourly, daily, weekly
   newsUpdateFreq        String  @default("daily")
+  riskTolerance         String  @default("moderate") // conservative, moderate, aggressive
+  investmentGoals       String  @default("growth") // growth, income, balanced
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
   user                  User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
@@ -129,4 +145,82 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// New models for advanced features
+
+model TradingStrategy {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String   @db.Text
+  parameters  Json     // Strategy parameters as JSON
+  performance Json?    // Performance metrics as JSON
+  isActive    Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ChatbotQuery {
+  id        String   @id @default(cuid())
+  userId    String
+  query     String   @db.Text
+  response  String   @db.Text
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PatternRecognition {
+  id          String   @id @default(cuid())
+  symbol      String
+  patternType String   // head_and_shoulders, double_top, triangle, etc.
+  confidence  Float
+  detectedAt  DateTime @default(now())
+  isValid     Boolean  @default(true)
+  timeframe   String   @default("daily") // daily, weekly, monthly
+}
+
+model PricePrediction {
+  id          String   @id @default(cuid())
+  symbol      String
+  modelType   String   // lstm, arima, prophet, etc.
+  prediction  Float
+  confidence  Float
+  targetDate  DateTime
+  createdAt   DateTime @default(now())
+  actualPrice Float?
+  accuracy    Float?
+}
+
+model SocialMediaSentiment {
+  id          String   @id @default(cuid())
+  symbol      String
+  platform    String   // twitter, reddit, etc.
+  sentiment   Float    // -1 to 1 scale
+  mentions    Int
+  createdAt   DateTime @default(now())
+}
+
+model FraudAlert {
+  id          String   @id @default(cuid())
+  symbol      String
+  alertType   String   // pump_and_dump, wash_trading, etc.
+  confidence  Float
+  description String   @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+}
+
+model StockRecommendation {
+  id          String   @id @default(cuid())
+  userId      String
+  symbol      String
+  action      String   // buy, sell, hold
+  confidence  Float
+  reason      String   @db.Text
+  priceTarget Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  isRead      Boolean  @default(false)
 }

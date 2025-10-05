@@ -16,6 +16,10 @@ DROP TABLE IF EXISTS "Session" CASCADE;
 DROP TABLE IF EXISTS "Account" CASCADE;
 DROP TABLE IF EXISTS "User" CASCADE;
 DROP TABLE IF EXISTS "VerificationToken" CASCADE;
+DROP TABLE IF EXISTS "ChatbotMessage" CASCADE;
+DROP TABLE IF EXISTS "ChatbotConversation" CASCADE;
+DROP TABLE IF EXISTS "ChatbotKnowledge" CASCADE;
+DROP TABLE IF EXISTS "ChatbotTool" CASCADE;
 
 -- ============= TABLES =============
 
@@ -220,6 +224,52 @@ CREATE TABLE "StockRecommendation" (
   CONSTRAINT "StockRecommendation_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"(id) ON DELETE CASCADE
 );
 
+CREATE TABLE "ChatbotConversation" (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  "userId" TEXT NOT NULL,
+  title TEXT DEFAULT 'New Conversation',
+  "isArchived" BOOLEAN DEFAULT false,
+  "createdAt" TIMESTAMP DEFAULT now(),
+  "updatedAt" TIMESTAMP DEFAULT now(),
+  CONSTRAINT "ChatbotConversation_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"(id) ON DELETE CASCADE
+);
+
+CREATE TABLE "ChatbotMessage" (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  "conversationId" TEXT NOT NULL,
+  role TEXT NOT NULL,
+  content TEXT NOT NULL,
+  data JSONB,
+  sources JSONB,
+  confidence DOUBLE PRECISION,
+  tokens INTEGER,
+  "responseTime" INTEGER,
+  "createdAt" TIMESTAMP DEFAULT now(),
+  CONSTRAINT "ChatbotMessage_conversationId_fkey" FOREIGN KEY ("conversationId") REFERENCES "ChatbotConversation"(id) ON DELETE CASCADE
+);
+
+CREATE TABLE "ChatbotKnowledge" (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  category TEXT NOT NULL,
+  title TEXT NOT NULL,
+  content TEXT NOT NULL,
+  keywords TEXT[],
+  priority INTEGER DEFAULT 0,
+  "isActive" BOOLEAN DEFAULT true,
+  "createdAt" TIMESTAMP DEFAULT now(),
+  "updatedAt" TIMESTAMP DEFAULT now()
+);
+
+CREATE TABLE "ChatbotTool" (
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
+  name TEXT NOT NULL,
+  description TEXT NOT NULL,
+  parameters JSONB NOT NULL,
+  "isActive" BOOLEAN DEFAULT true,
+  "createdAt" TIMESTAMP DEFAULT now(),
+  "updatedAt" TIMESTAMP DEFAULT now()
+);
+
 -- ============= INDEXES =============
 
 CREATE INDEX "Account_userId_idx" ON "Account"("userId");
@@ -234,3 +284,7 @@ CREATE INDEX "StockRecommendation_userId_idx" ON "StockRecommendation"("userId")
 CREATE INDEX "AiInsight_symbol_idx" ON "AiInsight"(symbol);
 CREATE INDEX "Portfolio_symbol_idx" ON "Portfolio"(symbol);
 CREATE INDEX "Watchlist_symbol_idx" ON "Watchlist"(symbol);
+CREATE INDEX "ChatbotConversation_userId_idx" ON "ChatbotConversation"("userId");
+CREATE INDEX "ChatbotMessage_conversationId_idx" ON "ChatbotMessage"("conversationId");
+CREATE INDEX "ChatbotKnowledge_category_idx" ON "ChatbotKnowledge"(category);
+CREATE INDEX "ChatbotTool_name_idx" ON "ChatbotTool"(name);

@@ -1,4 +1,3 @@
-// F:\finsight-ai\src\app\dashboard\page.tsx
 'use client';
 import { useState, useEffect, useCallback } from 'react';
 import { useSession } from 'next-auth/react';
@@ -25,6 +24,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Inter } from 'next/font/google';
+import AdvancedChatbot from '@/components/chatbot/advanced-chatbot';
 
 // Load Inter font with fallback
 const inter = Inter({
@@ -1807,32 +1807,34 @@ export default function DashboardPage() {
         
         {/* Main Dashboard Content */}
         <Tabs value={currentTab} onValueChange={setCurrentTab} className="space-y-6">
-          <TabsList className="grid w-full grid-cols-6">
-            <TabsTrigger value="watchlist" className="flex items-center gap-2">
-              <Activity className="h-4 w-4" />
-              Watchlist
-            </TabsTrigger>
-            <TabsTrigger value="charts" className="flex items-center gap-2">
-              <BarChart3 className="h-4 w-4" />
-              Charts
-            </TabsTrigger>
-            <TabsTrigger value="portfolio" className="flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Portfolio
-            </TabsTrigger>
-            <TabsTrigger value="insights" className="flex items-center gap-2">
-              <Brain className="h-4 w-4" />
-              Insights
-            </TabsTrigger>
-            <TabsTrigger value="ai" className="flex items-center gap-2">
-              <Zap className="h-4 w-4" />
-              AI Features
-            </TabsTrigger>
-            <TabsTrigger value="strategies" className="flex items-center gap-2">
-              <Target className="h-4 w-4" />
-              Strategies
-            </TabsTrigger>
-          </TabsList>
+          <div className="overflow-x-auto">
+            <TabsList className="grid w-max min-w-full grid-flow-col auto-cols-fr">
+              <TabsTrigger value="watchlist" className="flex items-center gap-2">
+                <Activity className="h-4 w-4" />
+                Watchlist
+              </TabsTrigger>
+              <TabsTrigger value="charts" className="flex items-center gap-2">
+                <BarChart3 className="h-4 w-4" />
+                Charts
+              </TabsTrigger>
+              <TabsTrigger value="portfolio" className="flex items-center gap-2">
+                <DollarSign className="h-4 w-4" />
+                Portfolio
+              </TabsTrigger>
+              <TabsTrigger value="insights" className="flex items-center gap-2">
+                <Brain className="h-4 w-4" />
+                Insights
+              </TabsTrigger>
+              <TabsTrigger value="ai" className="flex items-center gap-2">
+                <Zap className="h-4 w-4" />
+                AI Features
+              </TabsTrigger>
+              <TabsTrigger value="strategies" className="flex items-center gap-2">
+                <Target className="h-4 w-4" />
+                Strategies
+              </TabsTrigger>
+            </TabsList>
+          </div>
           
           {/* Watchlist Tab */}
           <TabsContent value="watchlist" className="space-y-4">
@@ -2582,43 +2584,45 @@ export default function DashboardPage() {
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Symbol</TableHead>
-                            <TableHead>Quantity</TableHead>
-                            <TableHead>Avg Cost</TableHead>
-                            <TableHead>Current Price</TableHead>
-                            <TableHead>Value</TableHead>
-                            <TableHead>Profit/Loss</TableHead>
-                            <TableHead className="w-10"></TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {portfolio.map((item: PortfolioItem) => (
-                            <TableRow key={item.id}>
-                              <TableCell className="font-medium">{item.symbol}</TableCell>
-                              <TableCell>{item.quantity}</TableCell>
-                              <TableCell>{formatCurrency(item.buyPrice)}</TableCell>
-                              <TableCell>{formatCurrency(item.currentPrice || 0)}</TableCell>
-                              <TableCell>{formatCurrency(item.totalValue || 0)}</TableCell>
-                              <TableCell className={item.profit && item.profit >= 0 ? 'text-green-600' : 'text-red-600'}>
-                                {item.profitPercent ? formatPercentage(item.profitPercent) : '0.00%'}
-                              </TableCell>
-                              <TableCell>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeFromPortfolio(item.id)}
-                                  className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TableCell>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Symbol</TableHead>
+                              <TableHead>Quantity</TableHead>
+                              <TableHead>Avg Cost</TableHead>
+                              <TableHead>Current Price</TableHead>
+                              <TableHead>Value</TableHead>
+                              <TableHead>Profit/Loss</TableHead>
+                              <TableHead className="w-10"></TableHead>
                             </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                          </TableHeader>
+                          <TableBody>
+                            {portfolio.map((item: PortfolioItem) => (
+                              <TableRow key={item.id}>
+                                <TableCell className="font-medium">{item.symbol}</TableCell>
+                                <TableCell>{item.quantity}</TableCell>
+                                <TableCell>{formatCurrency(item.buyPrice)}</TableCell>
+                                <TableCell>{formatCurrency(item.currentPrice || 0)}</TableCell>
+                                <TableCell>{formatCurrency(item.totalValue || 0)}</TableCell>
+                                <TableCell className={item.profit && item.profit >= 0 ? 'text-green-600' : 'text-red-600'}>
+                                  {item.profitPercent ? formatPercentage(item.profitPercent) : '0.00%'}
+                                </TableCell>
+                                <TableCell>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => removeFromPortfolio(item.id)}
+                                    className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      </div>
                       
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4">
                         {/* Portfolio Allocation */}
@@ -3649,6 +3653,22 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
         </div>
+
+        {/* Floating Chatbot Button */}
+        <Button
+          className="fixed bottom-4 right-4 z-40 rounded-full w-14 h-14 shadow-lg"
+          onClick={() => setIsChatbotOpen(true)}
+        >
+          <MessageCircle className="w-6 h-6" />
+        </Button>
+
+        {/* Advanced Chatbot Component */}
+        {isChatbotOpen && (
+          <AdvancedChatbot
+            isOpen={isChatbotOpen}
+            onClose={() => setIsChatbotOpen(false)}
+          />
+        )}
       </div>
     </div>
   );

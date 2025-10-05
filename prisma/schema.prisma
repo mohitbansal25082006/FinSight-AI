@@ -52,6 +52,7 @@ model User {
   preferences   UserPreferences?
   tradingStrategies TradingStrategy[]
   chatbotQueries ChatbotQuery[]
+  chatbotConversations ChatbotConversation[]
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 }
@@ -223,4 +224,51 @@ model StockRecommendation {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   isRead      Boolean  @default(false)
+}
+
+model ChatbotConversation {
+  id          String   @id @default(cuid())
+  userId      String
+  title       String?  @default("New Conversation")
+  isArchived  Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages    ChatbotMessage[]
+}
+
+model ChatbotMessage {
+  id            String   @id @default(cuid())
+  conversationId String
+  role          String   // 'user' | 'assistant' | 'system'
+  content       String   @db.Text
+  data          Json?    // Additional data like charts, tables, etc.
+  sources       Json?    // Source references
+  confidence    Float?   // Confidence score for the response
+  tokens        Int?     // Token count
+  responseTime  Int?     // Response time in ms
+  createdAt     DateTime @default(now())
+  conversation  ChatbotConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+}
+
+model ChatbotKnowledge {
+  id          String   @id @default(cuid())
+  category    String   // 'market', 'stock', 'portfolio', 'technical', 'fundamental'
+  title       String
+  content     String   @db.Text
+  keywords    String[] // Search keywords
+  priority    Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ChatbotTool {
+  id          String   @id @default(cuid())
+  name        String   // 'stock_price', 'portfolio_analysis', 'market_sentiment'
+  description String
+  parameters  Json     // Tool parameters schema
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }

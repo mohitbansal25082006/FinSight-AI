@@ -7,7 +7,6 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import {
   MessageCircle,
@@ -28,7 +27,8 @@ import {
   Eye,
   EyeOff,
   Menu,
-  X
+  X,
+  ChevronDown
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
@@ -109,26 +109,42 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
   const [editingTitle, setEditingTitle] = useState<string | null>(null);
   const [tempTitle, setTempTitle] = useState('');
   const [isMobile, setIsMobile] = useState(false);
+  const [showScrollButton, setShowScrollButton] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   // ScrollArea might not forward a specific type; use any for its ref
   const scrollAreaRef = useRef<any>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
   // Check for mobile device
   useEffect(() => {
     const checkMobile = () => {
-      setIsMobile(window.innerWidth < 768);
-      if (window.innerWidth < 768) {
-        setShowSidebar(false);
-      } else {
-        setShowSidebar(true);
-      }
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      setShowSidebar(!mobile);
     };
 
     checkMobile();
     window.addEventListener('resize', checkMobile);
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
+
+  // Scroll detection for scroll-to-bottom button
+  useEffect(() => {
+    const handleScroll = () => {
+      if (chatContainerRef.current) {
+        const { scrollTop, scrollHeight, clientHeight } = chatContainerRef.current;
+        const isNearBottom = scrollHeight - scrollTop - clientHeight < 100;
+        setShowScrollButton(!isNearBottom && scrollHeight > clientHeight);
+      }
+    };
+
+    const container = chatContainerRef.current;
+    if (container) {
+      container.addEventListener('scroll', handleScroll);
+      return () => container.removeEventListener('scroll', handleScroll);
+    }
+  }, [activeConversation]);
 
   // Fetch conversations on mount when open and user available
   useEffect(() => {
@@ -144,9 +160,9 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeConversation?.messages?.length, isLoading]);
 
-  const scrollToBottom = () => {
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({
-      behavior: 'smooth',
+      behavior,
       block: 'end'
     });
   };
@@ -413,14 +429,14 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
     const isUser = msg.role === 'user';
 
     return (
-      <div key={msg.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4`}>
-        <div className={`max-w-[85%] sm:max-w-[80%] ${isUser ? 'order-2' : 'order-1'}`}>
-          <div className={`rounded-lg p-3 ${
+      <div key={msg.id} className={`flex ${isUser ? 'justify-end' : 'justify-start'} mb-4 px-2`}>
+        <div className={`max-w-[90%] sm:max-w-[85%] md:max-w-[75%] lg:max-w-[70%]`}>
+          <div className={`rounded-lg p-3 sm:p-4 ${
             isUser 
               ? 'bg-blue-500 text-white' 
               : 'bg-gray-100 text-gray-900'
           }`}>
-            <div className="whitespace-pre-wrap break-words">{msg.content}</div>
+            <div className="whitespace-pre-wrap break-words text-sm sm:text-base">{msg.content}</div>
 
             {/* Show data visualization if available */}
             {msg.data && (
@@ -462,11 +478,11 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
             {/* Show follow-up questions */}
             {msg.followUpQuestions && msg.followUpQuestions.length > 0 && (
               <div className="mt-3 space-y-1">
-                <div className="text-xs font-semibold">Follow-up questions:</div>
+                <div className="text-xs font-semibold opacity-90">Follow-up questions:</div>
                 {msg.followUpQuestions.map((question, index) => (
                   <button
                     key={index}
-                    className="w-full text-left p-1 text-xs hover:bg-white/10 rounded transition-colors duration-200 break-words"
+                    className="w-full text-left p-2 text-xs sm:text-sm hover:bg-white/10 rounded transition-colors duration-200 break-words"
                     onClick={() => setMessage(question)}
                   >
                     {question}
@@ -488,7 +504,7 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
           </div>
 
           <div className={`flex items-center gap-2 mt-1 text-xs ${
-            isUser ? 'text-blue-200 justify-end' : 'text-gray-500 justify-start'
+            isUser ? 'text-blue-600 justify-end' : 'text-gray-500 justify-start'
           }`}>
             <Clock className="w-3 h-3" />
             {format(new Date(msg.timestamp), 'HH:mm')}
@@ -516,21 +532,21 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4">
-      <Card className="w-full h-full max-w-6xl flex flex-col bg-white">
-        <CardHeader className="flex-shrink-0 pb-3">
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-0 sm:p-4">
+      <Card className="w-full h-full sm:h-[90vh] sm:max-w-6xl flex flex-col bg-white sm:rounded-lg overflow-hidden">
+        <CardHeader className="flex-shrink-0 pb-3 border-b sticky top-0 bg-white z-10">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={toggleSidebar}
-                className="p-1 h-auto"
+                className="p-2 h-auto"
               >
                 {showSidebar ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
               </Button>
-              <CardTitle className="flex items-center gap-2 text-sm sm:text-base">
-                <Brain className="w-4 h-4 sm:w-5 sm:h-5" />
+              <CardTitle className="flex items-center gap-2 text-sm sm:text-lg">
+                <Brain className="w-5 h-5" />
                 <span className="hidden sm:inline">FinSight AI Assistant</span>
                 <span className="sm:hidden">AI Assistant</span>
               </CardTitle>
@@ -546,19 +562,19 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
                   <MessageCircle className="w-4 h-4" />
                 </Button>
               )}
-              <Button variant="ghost" size="sm" onClick={onClose} className="p-1 h-auto">
+              <Button variant="ghost" size="sm" onClick={onClose} className="p-2 h-auto">
                 <X className="w-4 h-4" />
               </Button>
             </div>
           </div>
         </CardHeader>
 
-        <CardContent className="flex-1 flex overflow-hidden p-0">
+        <CardContent className="flex-1 flex overflow-hidden p-0 relative">
           {/* Sidebar */}
           <div className={`
-            ${showSidebar ? 'flex' : 'hidden'} 
-            ${isMobile ? 'absolute inset-0 z-10 bg-white' : 'relative w-64'}
-            flex-col border-r
+            ${showSidebar ? 'translate-x-0' : '-translate-x-full'} 
+            ${isMobile ? 'absolute inset-y-0 left-0 z-20 w-[280px] shadow-xl' : 'relative w-64'}
+            flex flex-col border-r bg-white transition-transform duration-300 ease-in-out
           `}>
             <div className="p-3 border-b flex-shrink-0">
               <Button
@@ -571,17 +587,17 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
               </Button>
             </div>
 
-            <ScrollArea className="flex-1" ref={scrollAreaRef}>
+            <ScrollArea className="flex-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400" ref={scrollAreaRef}>
               <div className="p-2 space-y-1">
                 {conversations.map((conv) => (
                   <div
                     key={conv.id}
-                    className={`p-2 rounded cursor-pointer hover:bg-gray-100 transition-colors duration-200 ${
+                    className={`group p-3 rounded-lg cursor-pointer hover:bg-gray-100 transition-all duration-200 ${
                       activeConversation?.id === conv.id ? 'bg-blue-50 border border-blue-200' : ''
                     }`}
                     onClick={() => handleConversationSelect(conv)}
                   >
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-start justify-between gap-2">
                       {editingTitle === conv.id ? (
                         <Input
                           value={tempTitle}
@@ -592,56 +608,58 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
                               updateConversationTitle(conv.id, tempTitle);
                             }
                           }}
-                          className="h-6 text-sm"
+                          className="h-7 text-sm"
                           autoFocus
                         />
                       ) : (
-                        <div
-                          className="flex-1 text-sm font-medium truncate"
-                          onDoubleClick={() => {
-                            setEditingTitle(conv.id);
-                            setTempTitle(conv.title);
-                          }}
-                        >
-                          {conv.title}
-                        </div>
+                        <>
+                          <div
+                            className="flex-1 text-sm font-medium truncate"
+                            onDoubleClick={() => {
+                              setEditingTitle(conv.id);
+                              setTempTitle(conv.title);
+                            }}
+                          >
+                            {conv.title}
+                          </div>
+                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingTitle(conv.id);
+                                setTempTitle(conv.title);
+                              }}
+                            >
+                              <Edit3 className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                archiveConversation(conv.id);
+                              }}
+                            >
+                              <Archive className="w-3 h-3" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-6 w-6 p-0"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                deleteConversation(conv.id);
+                              }}
+                            >
+                              <Trash2 className="w-3 h-3" />
+                            </Button>
+                          </div>
+                        </>
                       )}
-                      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingTitle(conv.id);
-                            setTempTitle(conv.title);
-                          }}
-                        >
-                          <Edit3 className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            archiveConversation(conv.id);
-                          }}
-                        >
-                          <Archive className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="h-6 w-6 p-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteConversation(conv.id);
-                          }}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
-                      </div>
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
                       {format(new Date(conv.updatedAt), 'MMM d, HH:mm')}
@@ -655,21 +673,24 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
           {/* Overlay for mobile sidebar */}
           {isMobile && showSidebar && (
             <div 
-              className="absolute inset-0 bg-black/20 z-0"
+              className="absolute inset-0 bg-black/30 z-10"
               onClick={() => setShowSidebar(false)}
             />
           )}
 
           {/* Chat Area */}
-          <div className="flex-1 flex flex-col min-w-0">
+          <div className="flex-1 flex flex-col min-w-0 relative">
             {activeConversation ? (
               <>
-                <ScrollArea className="flex-1" ref={scrollAreaRef}>
-                  <div className="p-3 sm:p-4 space-y-4 min-h-full">
+                <div 
+                  ref={chatContainerRef}
+                  className="flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent hover:scrollbar-thumb-gray-400"
+                >
+                  <div className="p-2 sm:p-4 space-y-2 min-h-full">
                     {activeConversation.messages.map(renderMessage)}
                     {isLoading && (
-                      <div className="flex justify-start">
-                        <div className="bg-gray-100 rounded-lg p-3 max-w-[85%] sm:max-w-[80%]">
+                      <div className="flex justify-start px-2">
+                        <div className="bg-gray-100 rounded-lg p-3 sm:p-4 max-w-[90%] sm:max-w-[85%]">
                           <div className="flex items-center gap-2">
                             <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
                             <span className="text-sm">Thinking...</span>
@@ -679,9 +700,19 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
                     )}
                     <div ref={messagesEndRef} className="h-4" />
                   </div>
-                </ScrollArea>
+                </div>
 
-                <div className="border-t p-3 sm:p-4 flex-shrink-0">
+                {showScrollButton && (
+                  <button
+                    onClick={() => scrollToBottom('smooth')}
+                    className="absolute bottom-24 right-4 sm:bottom-28 sm:right-6 bg-blue-500 hover:bg-blue-600 text-white rounded-full p-2 shadow-lg transition-all duration-200 z-10"
+                    aria-label="Scroll to bottom"
+                  >
+                    <ChevronDown className="w-5 h-5" />
+                  </button>
+                )}
+
+                <div className="border-t p-2 sm:p-4 flex-shrink-0 bg-white">
                   <div className="flex gap-2">
                     <Input
                       ref={inputRef}
@@ -696,19 +727,19 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
                       onClick={sendMessage}
                       disabled={isLoading || !message.trim()}
                       size="sm"
-                      className="flex-shrink-0"
+                      className="flex-shrink-0 px-3 sm:px-4"
                     >
                       <Send className="w-4 h-4" />
                     </Button>
                   </div>
 
                   {/* Quick actions */}
-                  <div className="mt-2 flex flex-wrap gap-1">
+                  <div className="mt-2 flex flex-wrap gap-1 sm:gap-2">
                     <Button
                       variant="outline"
                       size="sm"
                       onClick={() => setMessage('What are the top gaining stocks today?')}
-                      className="text-xs h-7"
+                      className="text-xs h-7 px-2 sm:px-3"
                     >
                       <TrendingUp className="w-3 h-3 mr-1" />
                       <span className="hidden xs:inline">Top Gainers</span>
@@ -718,7 +749,7 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
                       variant="outline"
                       size="sm"
                       onClick={() => setMessage('How is my portfolio performing?')}
-                      className="text-xs h-7"
+                      className="text-xs h-7 px-2 sm:px-3"
                     >
                       <BarChart3 className="w-3 h-3 mr-1" />
                       <span className="hidden xs:inline">Portfolio</span>
@@ -728,7 +759,7 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
                       variant="outline"
                       size="sm"
                       onClick={() => setMessage('What\'s the market sentiment?')}
-                      className="text-xs h-7"
+                      className="text-xs h-7 px-2 sm:px-3"
                     >
                       <Brain className="w-3 h-3 mr-1" />
                       <span className="hidden xs:inline">Sentiment</span>
@@ -738,23 +769,24 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
                 </div>
               </>
             ) : (
-              <div className="flex-1 flex items-center justify-center p-4">
-                <div className="text-center max-w-sm">
-                  <Brain className="w-12 h-12 mx-auto text-gray-400 mb-4" />
-                  <h3 className="text-lg font-semibold mb-2">
+              <div className="flex-1 flex items-center justify-center p-4 overflow-y-auto">
+                <div className="text-center max-w-md mx-auto">
+                  <Brain className="w-12 h-12 sm:w-16 sm:h-16 mx-auto text-gray-400 mb-4" />
+                  <h3 className="text-lg sm:text-xl font-semibold mb-2">
                     Welcome to FinSight AI
                   </h3>
-                  <p className="text-gray-600 mb-4 text-sm">
+                  <p className="text-gray-600 mb-4 text-sm sm:text-base">
                     Your intelligent financial assistant is ready to help with stocks, portfolio analysis, and market insights.
                   </p>
-                  <Button onClick={createNewConversation} size="sm">
+                  <Button onClick={createNewConversation} size="sm" className="mb-6">
+                    <Plus className="w-4 h-4 mr-2" />
                     Start Conversation
                   </Button>
 
                   {/* Quick start options */}
-                  <div className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-2 text-left">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
                     <div 
-                      className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors duration-200"
+                      className="p-3 sm:p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors duration-200"
                       onClick={() => {
                         createNewConversation();
                         setTimeout(() => setMessage('Show me my portfolio performance'), 100);
@@ -767,7 +799,7 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
                       <p className="text-xs text-gray-600">Get insights on your investments</p>
                     </div>
                     <div 
-                      className="p-3 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors duration-200"
+                      className="p-3 sm:p-4 border rounded-lg cursor-pointer hover:bg-gray-50 transition-colors duration-200"
                       onClick={() => {
                         createNewConversation();
                         setTimeout(() => setMessage('What are today\'s market trends?'), 100);
@@ -786,6 +818,22 @@ export default function AdvancedChatbot({ isOpen, onClose }: AdvancedChatbotProp
           </div>
         </CardContent>
       </Card>
+
+      <style jsx>{`
+        .scrollbar-thin::-webkit-scrollbar {
+          width: 8px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .scrollbar-thin::-webkit-scrollbar-thumb {
+          background: #CBD5E0;
+          border-radius: 4px;
+        }
+        .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+          background: #A0AEC0;
+        }
+      `}</style>
     </div>
   );
 }

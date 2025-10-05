@@ -921,10 +921,21 @@ export class AiService {
         return { date, open, high, low, close, volume };
       });
 
-      // In a real implementation, this would use ML models like LSTM, ARIMA, etc.
-      // For now, we'll simulate with AI
+      // Get the latest price for context
+      const latestPrice = dataPoints.length > 0 ? dataPoints[dataPoints.length - 1].close : 0;
       
-      const prompt = `Based on the following historical stock data for ${symbol}, predict the price movement for the next ${timeframe}:\n\n${JSON.stringify(dataPoints.slice(-60))}\n\nProvide:\n1. Predicted price\n2. Confidence level (0-1)\n3. Key factors influencing the prediction\n\nFormat your response as valid JSON:\n{\n  "prediction": 150.25,\n  "confidence": 0.75,\n  "factors": ["strong earnings", "positive sentiment", "technical indicators"]\n}`;
+      if (latestPrice === 0) {
+        throw new Error('No valid price data available');
+      }
+
+      // Calculate basic statistics for context
+      const prices = dataPoints.map(d => d.close);
+      const avgPrice = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+      const minPrice = Math.min(...prices);
+      const maxPrice = Math.max(...prices);
+      const volatility = this.calculateVolatility(prices);
+
+      const prompt = `Based on the following historical stock data for ${symbol}, predict the price movement for the next ${timeframe}:\n\nCurrent Price: $${latestPrice.toFixed(2)}\nAverage Price: $${avgPrice.toFixed(2)}\nPrice Range: $${minPrice.toFixed(2)} - $${maxPrice.toFixed(2)}\nVolatility: ${volatility.toFixed(2)}\nRecent Price Data: ${JSON.stringify(dataPoints.slice(-10))}\n\nProvide a JSON response with:\n1. Predicted price (a realistic number close to the current price)\n2. Confidence level (0-1)\n3. Key factors influencing the prediction\n\nFormat your response as valid JSON:\n{\n  "prediction": 150.25,\n  "confidence": 0.75,\n  "factors": ["strong earnings", "positive sentiment", "technical indicators"]\n}`;
 
       const completion = await openai.chat.completions.create({
         model: 'gpt-3.5-turbo',
@@ -932,7 +943,7 @@ export class AiService {
           {
             role: 'system',
             content:
-              'You are a quantitative analyst AI that predicts stock prices. Always respond with valid JSON and include a disclaimer that this is not financial advice.',
+              'You are a quantitative analyst AI that predicts stock prices. Always respond with valid JSON and include a disclaimer that this is not financial advice. Ensure your prediction is realistic and close to the current price.',
           },
           { role: 'user', content: prompt },
         ],
@@ -947,11 +958,35 @@ export class AiService {
         throw new Error('No response from AI');
       }
 
-      const parsed = JSON.parse(raw) as Record<string, unknown>;
+      // Try to extract JSON from the response
+      let parsed: Record<string, unknown> = {};
       
-      const prediction = isNumber(parsed.prediction) ? parsed.prediction : 0;
+      try {
+        // First try to parse the entire response as JSON
+        parsed = JSON.parse(raw) as Record<string, unknown>;
+      } catch (error) {
+        // If that fails, try to extract JSON from the response
+        console.error('Failed to parse JSON directly, attempting to extract JSON from response');
+        
+        // Look for JSON in the response
+        const jsonMatch = raw.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          try {
+            parsed = JSON.parse(jsonMatch[0]) as Record<string, unknown>;
+          } catch (extractError) {
+            console.error('Failed to extract JSON from response:', extractError);
+            throw new Error('Invalid JSON response from AI');
+          }
+        } else {
+          throw new Error('No JSON found in response');
+        }
+      }
+      
+      const prediction = isNumber(parsed.prediction) ? parsed.prediction : latestPrice;
       const confidence = isNumber(parsed.confidence) ? parsed.confidence : 0.5;
-      const factors = isStringArray(parsed.factors) ? parsed.factors : [];
+      const factors = isStringArray(parsed.factors) ? parsed.factors : 
+                     isString(parsed.factors) ? [parsed.factors] : 
+                     ['Based on historical price trends and market conditions'];
 
       // Calculate target date based on timeframe
       let targetDate = new Date();
@@ -966,15 +1001,20 @@ export class AiService {
       }
 
       // Save to database
-      await prisma.pricePrediction.create({
-        data: {
-          symbol,
-          modelType: 'gpt-3.5-turbo',
-          prediction,
-          confidence,
-          targetDate
-        }
-      });
+      try {
+        await prisma.pricePrediction.create({
+          data: {
+            symbol,
+            modelType: 'gpt-3.5-turbo',
+            prediction,
+            confidence,
+            targetDate
+          }
+        });
+      } catch (dbError) {
+        console.error('Failed to save prediction to database:', dbError);
+        // Continue even if database save fails
+      }
 
       return {
         prediction,
@@ -984,6 +1024,49 @@ export class AiService {
       };
     } catch (error) {
       console.error('Stock price prediction error:', error);
+      
+      // Return a fallback prediction based on recent price data
+      try {
+        const prices = historicalData.map(point => toNumber(point.close) ?? 0).filter(p => p > 0);
+        
+        if (prices.length > 0) {
+          const latestPrice = prices[prices.length - 1];
+          const avgPrice = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+          
+          // Simple prediction based on recent trend
+          let prediction = latestPrice;
+          let confidence = 0.3;
+          let factors = ['Limited data available'];
+          
+          if (prices.length >= 5) {
+            const recentPrices = prices.slice(-5);
+            const avgRecentPrice = recentPrices.reduce((sum, price) => sum + price, 0) / recentPrices.length;
+            
+            if (avgRecentPrice > latestPrice) {
+              prediction = latestPrice * 1.02; // 2% increase
+              factors.push('Recent upward trend');
+            } else if (avgRecentPrice < latestPrice) {
+              prediction = latestPrice * 0.98; // 2% decrease
+              factors.push('Recent downward trend');
+            } else {
+              factors.push('Recent price stability');
+            }
+            
+            confidence = 0.4;
+          }
+          
+          return {
+            prediction,
+            confidence,
+            timeframe,
+            factors
+          };
+        }
+      } catch (fallbackError) {
+        console.error('Fallback prediction also failed:', fallbackError);
+      }
+      
+      // Ultimate fallback
       return {
         prediction: 0,
         confidence: 0,
@@ -991,6 +1074,19 @@ export class AiService {
         factors: ['Unable to generate prediction at this time']
       };
     }
+  }
+
+  /**
+   * Add this helper method to calculate volatility
+   */
+  static calculateVolatility(prices: number[]): number {
+    if (prices.length < 2) return 0;
+    
+    const mean = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+    const squaredDifferences = prices.map(price => Math.pow(price - mean, 2));
+    const variance = squaredDifferences.reduce((sum, diff) => sum + diff, 0) / prices.length;
+    
+    return Math.sqrt(variance);
   }
 
   /**

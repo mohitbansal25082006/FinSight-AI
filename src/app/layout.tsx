@@ -7,6 +7,7 @@ import { AuthButton } from '@/components/auth/auth-button';
 import Link from 'next/link';
 import { getServerSession } from 'next-auth';
 import { authOptions } from '@/lib/auth';
+import Image from 'next/image';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -27,42 +28,41 @@ export default async function RootLayout({
       <body className={inter.className}>
         <Providers>
           {/* Navigation Header */}
-          <header className="border-b bg-white/95 backdrop-blur-sm sticky top-0 z-50">
+          <header className="sticky top-0 z-50 backdrop-blur-lg bg-white/80 border-b border-gray-200/50 shadow-sm">
             <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="flex justify-between items-center h-16">
-                <div className="flex items-center space-x-8">
-                  <Link href="/" className="flex items-center space-x-2">
-                    <div className="w-8 h-8 bg-gradient-to-r from-blue-600 to-purple-600 rounded-lg flex items-center justify-center">
-                      <span className="text-white font-bold text-sm">FS</span>
+                <div className="flex items-center">
+                  <Link href="/" className="flex items-center space-x-3 group">
+                    <div className="relative">
+                      <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-full blur-md opacity-70 group-hover:opacity-90 transition-opacity duration-300"></div>
+                      <div className="relative bg-white p-1 rounded-full">
+                        <Image 
+                          src="/logo.png" 
+                          alt="FinSight AI Logo" 
+                          width={40} 
+                          height={40}
+                          className="rounded-full"
+                        />
+                      </div>
                     </div>
-                    <span className="text-xl font-bold text-gray-900">FinSight AI</span>
+                    <div className="flex flex-col">
+                      <span className="text-xl font-bold bg-gradient-to-r from-blue-600 to-indigo-700 bg-clip-text text-transparent">
+                        FinSight AI
+                      </span>
+                      <span className="text-xs text-gray-500">Smart Trading Platform</span>
+                    </div>
                   </Link>
-                  
-                  {session && (
-                    <nav className="hidden md:flex space-x-6">
-                      <Link 
-                        href="/dashboard" 
-                        className="text-gray-700 hover:text-blue-600 transition-colors"
-                      >
-                        Dashboard
-                      </Link>
-                      <Link 
-                        href="/dashboard" 
-                        className="text-gray-700 hover:text-blue-600 transition-colors"
-                      >
-                        Markets
-                      </Link>
-                      <Link 
-                        href="/dashboard" 
-                        className="text-gray-700 hover:text-blue-600 transition-colors"
-                      >
-                        Portfolio
-                      </Link>
-                    </nav>
-                  )}
                 </div>
                 
-                <AuthButton />
+                <div className="flex items-center space-x-4">
+                  {session && (
+                    <div className="hidden md:flex items-center space-x-1">
+                      <div className="h-2 w-2 rounded-full bg-green-500 animate-pulse"></div>
+                      <span className="text-sm text-gray-600">Live Data</span>
+                    </div>
+                  )}
+                  <AuthButton />
+                </div>
               </div>
             </div>
           </header>
